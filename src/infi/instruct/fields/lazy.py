@@ -70,3 +70,6 @@ class LazyFieldContainer(PlainFieldContainer):
 
     def sizeof(self):
         return self.size
+
+    def min_sizeof(self):
+        return self.size

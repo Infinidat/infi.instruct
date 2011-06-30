@@ -1,8 +1,10 @@
 import types
 from StringIO import StringIO
 
+from infi.exceptools import chain
+
 from ..serializer import StaticSerializer
-from ..errors import StructNotWellDefinedError
+from ..errors import InstructError, StructNotWellDefinedError
 
 class FieldBase(object):
     def write_to_stream(self, instance, stream):
@@ -16,6 +18,9 @@ class FieldBase(object):
 
     def sizeof(self):
         return None
+
+    def min_sizeof(self):
+        return self.sizeof() or 0
 
 class FieldContainer(FieldBase):
     def prepare_class(self, cls):
@@ -36,6 +41,12 @@ class FieldContainer(FieldBase):
     def set_instance_field_args(self, instance, values):
         for field, value in values:
             field.__set__(instance, value)
+
+    def min_sizeof(self):
+        size = 0
+        for field in self.fields:
+            size += field.min_sizeof()
+        return size
 
 class NamedField(FieldBase):
     def __init__(self, name):
@@ -133,7 +144,10 @@ class PlainFieldContainer(FieldContainer):
 
     def write_to_stream(self, instance, stream):
         for field in self.fields:
-            field.write_to_stream(instance, stream)
+            try:
+                field.write_to_stream(instance, stream)
+            except:
+                raise chain(InstructError("write_to_stream failed while writing field %s" % (field,)))
 
     def read_from_stream(self, instance, stream):
         for field in self.fields:
@@ -183,10 +197,9 @@ class Struct(StaticSerializer):
         
         return obj
 
-#    def validate(self):
-#        cls = type(self)
-#        for field in cls._iter_fields():
-#            field.validate(self)
+    def validate(self):
+        cls = type(self)
+        cls._fields_.validate(self)
 
     def __str__(self):
         cls = type(self)
@@ -226,6 +239,11 @@ class Struct(StaticSerializer):
     def sizeof(cls):
         cls._init_class_fields_if_needed()
         return cls._fields_.sizeof()
+
+    @classmethod
+    def min_sizeof(cls):
+        cls._init_class_fields_if_needed()
+        return cls._fields_.min_sizeof()
 
     # Private methods:
     @classmethod

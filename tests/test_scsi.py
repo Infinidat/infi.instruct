@@ -1,9 +1,5 @@
 import binascii
-from StringIO import StringIO
-
 from infi.instruct import *
-
-from utils import *
 
 class OperationCode(Struct):
     _fields_ = BitFields(
@@ -96,12 +92,12 @@ class StandardInquiryData(Struct):
 
 def test_inquiry_create():
     command = InquiryCommand.create(evpd=0, page_code=0x0, allocation_length=96)
-    assert obj_to_string(command) == '\x12\x00\x00\x00\x60\x00'
+    assert InquiryCommand.instance_to_string(command) == '\x12\x00\x00\x00\x60\x00'
 
 def test_standard_inquiry_parse():
     serialized_data = '\x00\x00\x05\x02[\x00\x00\x00ATA     ST9320423AS     0003\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 
-    data = string_to_obj(StandardInquiryData, serialized_data)
+    data = StandardInquiryData.create_instance_from_string(serialized_data)
 
     assert data.t10_vendor_identification == 'ATA     '
     assert data.product_identification == 'ST9320423AS     '

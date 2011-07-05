@@ -1,6 +1,6 @@
 import struct
-from .errors import InstructError, NotEnoughDataError
-from .serializer import DynamicSerializer
+from ..errors import InstructError, NotEnoughDataError
+from ..serializer import DynamicSerializer
 from infi.exceptools import chain
 
 class PrimitiveSerializer(DynamicSerializer):

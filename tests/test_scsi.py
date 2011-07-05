@@ -30,14 +30,14 @@ class InquiryCommand(Struct):
 
 class StandardInquiryExtendedData(Struct):
     _fields_ = [
-        String("vendor_specific", 20), 
+        FixedSizeString("vendor_specific", 20), 
         BitFields(BitPadding(5), # reserved
                   Flag("ius"), # SPC-5 specific
                   Flag("qas"), # SPC-5 specific
                   Flag("clocking") # SPC-5 specific
         ),
         Padding(1), # reserved
-        String("version_descriptors", 16),
+        FixedSizeString("version_descriptors", 16),
         Padding(22)
     ]
     
@@ -83,9 +83,9 @@ class StandardInquiryData(Struct):
                       BitPadding(2), # obsolete
                       Flag("cmd_que"),
                       Flag("vs")),
-            String("t10_vendor_identification", 8),
-            String("product_identification", 16),
-            String("product_revision_level", 4),
+            FixedSizeString("t10_vendor_identification", 8),
+            FixedSizeString("product_identification", 16),
+            FixedSizeString("product_revision_level", 4),
         ),
         OptionalField("extended", StandardInquiryExtendedData, is_extended_data_exist)
    ]

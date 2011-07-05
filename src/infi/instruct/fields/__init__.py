@@ -1,6 +1,4 @@
 import types
-from StringIO import StringIO
-
 from infi.exceptools import chain
 
 from ..serializer import StaticSerializer

@@ -175,6 +175,7 @@ class Struct(StaticSerializer):
         kwargs = kwargs.copy()
         
         cls = type(self)
+        cls._init_class_fields_if_needed()
         values = cls._fields_.consume_field_args(args, kwargs)
         
         super(Struct, self).__init__(*args, **kwargs)

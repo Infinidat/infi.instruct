@@ -57,3 +57,12 @@ class DynamicSerializer(object):
 
     def sizeof(self):
         return None
+
+def is_serializer(obj):
+    return hasattr(obj, 'sizeof') and hasattr(obj, 'create_instance_from_stream') \
+           and hasattr(obj, 'write_instance_to_stream')
+
+def serializer_class(obj):
+    if type(obj) == type:
+        return obj
+    return type(obj)

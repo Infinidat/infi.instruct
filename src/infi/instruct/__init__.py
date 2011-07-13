@@ -1,6 +1,7 @@
 __import__("pkg_resources").declare_namespace(__name__)
 
 from .fields import Struct, Field, ConstField, Padding
+from .fields.switch import MultiTypeSwitchField, DictSwitchField
 from .fields.lazy import LazyFieldContainer
 from .fields.optional import OptionalField
 from .fields.bit import BitFieldContainer, BitField, BitPadding

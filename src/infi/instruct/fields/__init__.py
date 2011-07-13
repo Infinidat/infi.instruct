@@ -4,6 +4,9 @@ from infi.exceptools import chain
 from ..serializer import StaticSerializer
 from ..errors import InstructError, StructNotWellDefinedError
 
+def copy_if_supported(obj):
+    return obj.copy() if hasattr(obj, 'copy') else obj
+
 class FieldBase(object):
     def write_to_stream(self, instance, stream):
         raise NotImplementedError()
@@ -55,10 +58,7 @@ class Field(NamedField):
     def __init__(self, name, serializer, default=None):
         super(Field, self).__init__(name)
         self.serializer = serializer
-        if hasattr(default, 'copy'):
-            self.default = default.copy()
-        else:
-            self.default = default
+        self.default = copy_if_supported(default)
 
     def write_to_stream(self, instance, stream):
         self.serializer.write_instance_to_stream(self.__get__(instance, self.name), stream)
@@ -173,6 +173,8 @@ class Struct(StaticSerializer):
     def __init__(self, *args, **kwargs):
         args = list(args)
         kwargs = kwargs.copy()
+        # TODO: do we want to assert here that instruct is in the stack, to make sure people use create() and not
+        # initialize the object on their own?
         
         cls = type(self)
         cls._init_class_fields_if_needed()

@@ -34,12 +34,19 @@ class FieldAdapter(ModifierSerializer):
         return "%s=%s" % (self.name, self.serializer.to_repr(value) if value is not None else "<not set>")
     
     def read_into_from_stream(self, obj, stream):
-        value = self.serializer.create_from_stream(stream)
+        try:
+            value = self.serializer.create_from_stream(stream)
+        except InstructError, e:
+            raise chain(InstructError("Error occurred while reading field '%s' for class %s" % (self.name, type(obj))))
+                
         setattr(obj, self.name, value)
 
     def write_to_stream(self, obj, stream):
         value = getattr(obj, self.name, None)
-        self.serializer.write_to_stream(value, stream)
+        try:
+            self.serializer.write_to_stream(value, stream)
+        except InstructError, e:
+            raise chain(InstructError("Error occurred while writing field '%s' for class %s" % (self.name, type(obj))))
 
     def prepare_instance(self, obj, args, kwargs):
         if self.name in kwargs:

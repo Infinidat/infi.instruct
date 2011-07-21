@@ -1,4 +1,7 @@
 class BitStringIO(object):
+    """
+    Naive bit stream implementation.
+    """
     def __init__(self, byte_size_or_array):
         self.position = 0
         self.value = bytearray(byte_size_or_array)

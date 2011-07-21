@@ -7,6 +7,7 @@ from .fields.optional import OptionalFieldAdapter
 from .fields.padding import BytePaddingSerializer
 from .fields.const import ConstFieldAdapter
 from .fields.bit import BitFieldListSerializer, BitSerializer, BitPaddingSerializer
+from .fields.struct_selector import StructSelectorSerializer
 from .serializer import CreatorSerializer
 from .serializers.string import *
 from .serializers.primitive import *

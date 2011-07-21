@@ -109,7 +109,7 @@ class MutableObjectSerializer(CreatorSerializer, ModifierSerializer):
 class AggregateModifierSerializer(ModifierSerializer):
     def __init__(self, serializers):
         self.serializers = serializers
-        self.all_fixed_size = all(map(lambda serializer: serializer.is_fixed_size(), serializers))
+        self.all_fixed_size = all([ serializer.is_fixed_size() for serializer in serializers ])
         self.min_size = reduce(lambda s, serializer: s + serializer.min_sizeof(), self.serializers, 0)
     
     def min_sizeof(self):

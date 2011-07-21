@@ -1,17 +1,22 @@
-from StringIO import StringIO
-from . import Field, NamedField, PlainFieldContainer
+from cStringIO import StringIO
 
-class LazyFieldDecorator(NamedField):
+from . import FieldAdapter, FieldListIO
+from ..base import FixedSizer, Sizer, ApproxSizer, is_sizer, is_approx_sizer, EMPTY_CONTEXT
+from ..mixin import install_mixin_if
+
+class LazyFieldDecorator(FieldAdapter):
     def __init__(self, container, field):
+        super(LazyFieldDecorator, self).__init__(field.name, field.default, field.io)
         self.container = container
         self.field = field
-        self.name = field.name
+        install_mixin_if(self, Sizer, is_sizer(self.field))
+        install_mixin_if(self, ApproxSizer, is_approx_sizer(self.field))
 
-    def write_to_stream(self, instance, stream):
-        self.field.write_to_stream(instance, stream)
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        self.field.write_to_stream(obj, stream, context)
 
-    def read_from_stream(self, instance, stream):
-        self.field.read_from_stream(instance, stream)
+    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        self.field.read_into_from_stream(obj, stream, context, *args, **kwargs)
         
     def __set__(self, instance, value):
         self.container.instantiate_if_needed(instance)
@@ -21,55 +26,51 @@ class LazyFieldDecorator(NamedField):
         self.container.instantiate_if_needed(instance)
         return self.field.__get__(instance, owner)
 
-    def instance_repr(self, instance):
-        if self.container.is_instantiated(instance):
-            return self.field.instance_repr(instance)
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        if self.container.is_instantiated(obj):
+            return self.field.to_repr(obj, context)
         return "<lazy>"
     
-    def sizeof(self):
-        return self.field.sizeof()
-    
-class LazyFieldContainer(PlainFieldContainer):
-    def __init__(self, fields):
-        # Decorate all the named fields.
-        decorated_fields = []
-        size = 0
-        for field in fields:
-            field_size = field.sizeof()
-            if field_size is None:
-                raise ValueError("%s is not a fixed-size field inside a lazy container" % field)
-            size += field_size
-            if isinstance(field, NamedField):
-                decorated_fields.append(LazyFieldDecorator(self, field))
-            else:
-                decorated_fields.append(field)
-        
-        super(LazyFieldContainer, self).__init__(decorated_fields)
+    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
+        return self.field.min_max_sizeof(context)
 
-        self.size = size
+    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
+        return self.field.min_max_sizeof(obj, context)
+
+class LazyFieldListIO(FixedSizer, FieldListIO):
+    def __init__(self, ios):
+        new_ios = []
+        for io in ios:
+            if not is_approx_sizer(io) or not io.is_fixed_size():
+                raise ValueError("%s is not a fixed-size field inside a lazy container" % (io,))
+            if isinstance(io, FieldAdapter):
+                new_ios.append(LazyFieldDecorator(self, io))
+            else:
+                new_ios.append(io)
+        
+        super(LazyFieldListIO, self).__init__(new_ios)
+
+        self.size = sum([ io.min_max_sizeof().min for io in self.ios ])
         self.lazy_key = "_lazy_container_%s" % id(self)
 
-    def write_to_stream(self, instance, stream):
-        self.instantiate_if_needed(instance)
-        super(LazyFieldContainer, self).write_to_stream(instance, stream)
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        self.instantiate_if_needed(obj)
+        super(LazyFieldListIO, self).write_to_stream(obj, stream)
 
-    def read_from_stream(self, instance, stream):
+    def read_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         data = stream.read(self.size)
-        instance._values_[self.lazy_key] = dict(instantiated=False, data=data)
+        setattr(obj, self.lazy_key, dict(data=data, context=context, args=args, kwargs=kwargs))
 
-    def is_instantiated(self, instance):
-        return self.lazy_key not in instance._values_
+    def is_instantiated(self, obj):
+        return hasattr(obj, self.lazy_key)
 
-    def instantiate_if_needed(self, instance):
-        if self.is_instantiated(instance):
+    def instantiate_if_needed(self, obj):
+        if self.is_instantiated(obj):
             return
-        io = StringIO(instance._values_[self.lazy_key]['data'])
-        for field in self.fields:
-            field.read_from_stream(instance, io)
-        del instance._values_[self.lazy_key]
-
-    def sizeof(self):
-        return self.size
-
-    def min_sizeof(self):
-        return self.size
+        params = getattr(obj, self.lazy_key)
+        stream = StringIO(params['data'])
+        try:
+            super(LazyFieldListIO, self).read_from_stream(obj, stream, params['context'],
+                                                          *params['args'], **params['kwargs'])
+        finally:
+            delattr(obj, self.lazy_key)

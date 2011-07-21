@@ -17,3 +17,7 @@ class FieldTypeNotSupportedError(InstructError):
 
 class InvalidValueError(InstructError):
     pass
+
+class ValidationValueIsNoneError(InstructError):
+    def __init__(self):
+        super(ValidationValueIsNoneError, self).__init__("Value cannot be None")

@@ -1,39 +1,37 @@
 import struct
-from ..errors import InstructError, NotEnoughDataError
-from ..serializer import DynamicSerializer
+from ..errors import InstructError, NotEnoughDataError, ValidationValueIsNoneError
+from ..serializer import CreatorSerializer, FixedSizeSerializerMixin
 from infi.exceptools import chain
 
-class PrimitiveSerializer(DynamicSerializer):
+class PrimitiveSerializer(FixedSizeSerializerMixin, CreatorSerializer):
     def __init__(self, format_string):
-        self.format_string = format_string
+        super(CreatorSerializer, self).__init__()
         self.size = struct.calcsize(format_string)
+        self.format_string = format_string
 
-    def create_instance_from_stream(self, stream):
+    def create_from_stream(self, stream):
         packed_value = stream.read(self.size)
         if len(packed_value) < self.size:
-            # TODO: exception better reporting
             raise NotEnoughDataError("expected to read %d bytes but read only %d bytes instead" %
                                      (self.size, len(packed_value)))
         try:
             return struct.unpack(self.format_string, packed_value)[0]
         except struct.error, e:
-            # TODO: exception better reporting
             raise chain(InstructError("Unpacking error occurred"))
 
-    def write_instance_to_stream(self, instance, stream):
-        if instance is None:
-            raise InstructError("Cannot serialize None as a primitive value %s" % cls)
-    
+    def write_to_stream(self, obj, stream):
         try:
-            stream.write(struct.pack(self.format_string, instance))
+            stream.write(struct.pack(self.format_string, obj))
         except struct.error, e:
             raise chain(InstructError("Packing error occurred"))
 
-    def sizeof(self):
-        return self.size
-
-    def instance_repr(self, instance):
-        return repr(instance)
+    def validate(self, obj):
+        if obj is None:
+            raise ValidationValueIsNoneError()
+        # TODO: validate that the type is OK.
+    
+    def to_repr(self, obj):
+        return repr(obj)
 
 """unsigned, big endian 8-bit integer"""
 UBInt8Serializer = PrimitiveSerializer(">B")

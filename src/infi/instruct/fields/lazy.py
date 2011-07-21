@@ -1,17 +1,17 @@
 from StringIO import StringIO
-from . import Field, NamedField, PlainFieldContainer
+from . import FieldAdapter, FieldListSerializer
 
-class LazyFieldDecorator(NamedField):
+class LazyFieldDecorator(FieldAdapter):
     def __init__(self, container, field):
+        super(LazyFieldDecorator, self).__init__(field.name, field.default, field.serializer)
         self.container = container
         self.field = field
-        self.name = field.name
 
-    def write_to_stream(self, instance, stream):
-        self.field.write_to_stream(instance, stream)
+    def write_to_stream(self, obj, stream):
+        self.field.write_to_stream(obj, stream)
 
-    def read_from_stream(self, instance, stream):
-        self.field.read_from_stream(instance, stream)
+    def read_into_from_stream(self, obj, stream):
+        self.field.read_into_from_stream(obj, stream)
         
     def __set__(self, instance, value):
         self.container.instantiate_if_needed(instance)
@@ -29,47 +29,37 @@ class LazyFieldDecorator(NamedField):
     def sizeof(self):
         return self.field.sizeof()
     
-class LazyFieldContainer(PlainFieldContainer):
-    def __init__(self, fields):
-        # Decorate all the named fields.
-        decorated_fields = []
-        size = 0
-        for field in fields:
-            field_size = field.sizeof()
-            if field_size is None:
-                raise ValueError("%s is not a fixed-size field inside a lazy container" % field)
-            size += field_size
-            if isinstance(field, NamedField):
-                decorated_fields.append(LazyFieldDecorator(self, field))
+class LazyFieldListSerializer(FieldListSerializer):
+    def __init__(self, serializers):
+        new_serializers = []
+        for serializer in serializers:
+            if not serializer.is_fixed_size():
+                raise ValueError("%s is not a fixed-size field inside a lazy container" % (serializer,))
+            if isinstance(serializer, FieldAdapter):
+                new_serializers.append(LazyFieldDecorator(self, serializer))
             else:
-                decorated_fields.append(field)
+                new_serializers.append(serializer)
         
-        super(LazyFieldContainer, self).__init__(decorated_fields)
+        super(LazyFieldListSerializer, self).__init__(new_serializers)
 
-        self.size = size
+        self.size = self.min_size
         self.lazy_key = "_lazy_container_%s" % id(self)
 
-    def write_to_stream(self, instance, stream):
-        self.instantiate_if_needed(instance)
-        super(LazyFieldContainer, self).write_to_stream(instance, stream)
+    def write_to_stream(self, obj, stream):
+        self.instantiate_if_needed(obj)
+        super(LazyFieldListSerializer, self).write_to_stream(obj, stream)
 
-    def read_from_stream(self, instance, stream):
+    def read_from_stream(self, obj, stream):
         data = stream.read(self.size)
-        instance._values_[self.lazy_key] = dict(instantiated=False, data=data)
+        setattr(obj, self.lazy_key, data)
 
-    def is_instantiated(self, instance):
-        return self.lazy_key not in instance._values_
+    def is_instantiated(self, obj):
+        return hasattr(obj, self.lazy_key)
 
-    def instantiate_if_needed(self, instance):
-        if self.is_instantiated(instance):
+    def instantiate_if_needed(self, obj):
+        if self.is_instantiated(obj):
             return
-        io = StringIO(instance._values_[self.lazy_key]['data'])
-        for field in self.fields:
-            field.read_from_stream(instance, io)
-        del instance._values_[self.lazy_key]
-
-    def sizeof(self):
-        return self.size
-
-    def min_sizeof(self):
-        return self.size
+        io = StringIO(getattr(obj, self.lazy_key))
+        for serializer in self.serializers:
+            serializer.read_into_from_stream(obj, io)
+        delattr(obj, self.lazy_key)

@@ -1,18 +1,29 @@
-from . import Field
+from . import FieldAdapter
 
-class OptionalField(Field):
-    def __init__(self, name, serializer, predicate, default=None):
-        super(OptionalField, self).__init__(name, serializer, default)
+class OptionalFieldAdapter(FieldAdapter):
+    def __init__(self, name, default, serializer, predicate):
+        super(OptionalFieldAdapter, self).__init__(name, default, serializer)
         self.predicate = predicate
 
-    def write_to_stream(self, instance, stream):
-        value = self.__get__(instance, self.name)
+    def write_to_stream(self, obj, stream):
+        value = getattr(obj, self.name, self.default)
         if value is not None:
-            self.serializer.write_instance_to_stream(value, stream)
+            self.serializer.write_to_stream(value, stream)
 
-    def read_from_stream(self, instance, stream):
-        if self.predicate(instance, stream):
-            self.__set__(instance, self.serializer.create_instance_from_stream(stream))
+    def read_into_from_stream(self, obj, stream):
+        if self.predicate(obj, stream):
+            value = self.serializer.create_from_stream(stream)
+            setattr(obj, self.name, value)
 
-    def sizeof(self):
-        return None
+    def is_fixed_size(self):
+        return False
+
+    def min_sizeof(self):
+        return 0
+
+    def sizeof(self, obj):
+        value = getattr(obj, self.name, self.default)
+        if value is None:
+            return 0
+        return self.serializer.sizeof(value)
+        

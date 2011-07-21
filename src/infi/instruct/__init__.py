@@ -60,9 +60,6 @@ def BitFlag(name, default=None):
 def TotalSizeArray(name, size_serializer, element_serializer, default=None):
     return FieldAdapter(name, default, TotalSizeArraySerializer(size_serializer, element_serializer))
 
-def Select(deserializer, serializer):
-    
-
 # Backward compatibility
 Flag = BitFlag
 

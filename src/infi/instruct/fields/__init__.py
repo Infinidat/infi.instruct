@@ -2,7 +2,7 @@ import types
 from infi.exceptools import chain
 
 from ..base import MutatingReader, Writer, ReprCapable, EMPTY_CONTEXT, Sizer, ApproxSizer, is_sizer, is_approx_sizer
-from ..base import MinMax
+from ..base import is_repr_capable, MinMax
 from ..mixin import install_mixin_if
 from ..errors import InstructError, StructNotWellDefinedError
 
@@ -77,8 +77,8 @@ class FieldListIO(MutatingReader, Writer, ReprCapable):
         for io in [ io for io in self.ios if hasattr(io, 'prepare_instance') ]:
             io.prepare_instance(obj, args, kwargs)
 
-    def to_repr(self, obj):
-        return "(" + ", ".join([ (io.to_repr(obj) if is_repr_capable(io) else repr(obj)) for io in self.ios ]) + ")"
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        return "(" + ", ".join([ (io.to_repr(obj, context) if is_repr_capable(io) else repr(obj)) for io in self.ios ]) + ")"
 
     def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
         return sum([ io.sizeof(obj, context) for io in self.ios ])
@@ -182,7 +182,7 @@ class Struct(object):
     
     def to_repr(self, context=EMPTY_CONTEXT):
         cls = type(self)
-        return("%s%s" % (cls.__name__, self._io_.to_repr(self, context)))
+        return("%s%s" % (cls.__name__, cls._io_.to_repr(self, context)))
 
     # Backward compatibility (0.10)
     # BEGIN DEPRECATION

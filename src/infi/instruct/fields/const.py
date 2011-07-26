@@ -1,7 +1,6 @@
 from . import FieldAdapter
 from ..base import EMPTY_CONTEXT
 from ..errors import InstructError
-from ..serializer import FixedSizeSerializerMixin
 
 class ConstFieldAdapter(FieldAdapter):
     def __init__(self, name, value, io=None):

@@ -4,7 +4,9 @@ class InstructError(InfiException):
     pass
 
 class NotEnoughDataError(InstructError):
-    pass
+    def __init__(self, expected, actually_read):
+        super(NotEnoughDataError, self).__init__("expected to read %d bytes but read only %d bytes instead" %
+                                                 (expected, actually_read))
 
 class StructNotWellDefinedError(InstructError):
     pass

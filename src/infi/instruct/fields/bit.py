@@ -1,65 +1,54 @@
-from ..serializer import CreatorSerializer, FixedSizeSerializerMixin, ModifierSerializer
-from ..errors import BitFieldNotInByteBoundry, FieldTypeNotSupportedError
-from . import FieldListSerializer
-from .bitstringio import BitStringIO
+from . import FieldListIO
+from ..base import AllocatingReader, MutatingReader, Writer, ReprCapable, FixedSizer, MinMax, is_approx_sizer
+from ..base import Sizer, FixedSizer, EMPTY_CONTEXT
+from ..errors import InstructError, BitFieldNotInByteBoundry, FieldTypeNotSupportedError
+from ..utils.bitstringio import BitStringIO
 
-class BitSerializer(FixedSizeSerializerMixin, CreatorSerializer):
-    def __init__(self, bit_size):
-        super(BitSerializer, self).__init__()
-        self.size = bit_size
-
-    def create_from_stream(self, stream, *args, **kwargs):
-        return stream.read(self.size)
-
-    def write_to_stream(self, obj, stream):
-        stream.write(obj, self.size)
-
-    def to_repr(self, obj):
-        return str(obj)
-
-    def validate(self, obj):
-        # TODO: validate
-        pass
-
-class BitPaddingSerializer(FixedSizeSerializerMixin, ModifierSerializer):
+class BitIO(AllocatingReader, Writer, ReprCapable, FixedSizer):
     def __init__(self, size):
-        super(BitPaddingSerializer, self).__init__()
+        super(BitIO, self).__init__()
         self.size = size
 
-    def read_into_from_stream(self, obj, stream):
+    def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        return stream.read(self.size)
+
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        stream.write(obj, self.size)
+
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        return repr(obj)
+
+class BitPaddingIO(MutatingReader, Writer, ReprCapable, FixedSizer):
+    def __init__(self, size):
+        super(BitPaddingIO, self).__init__()
+        self.size = size
+
+    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         stream.read(self.size)
 
-    def write_to_stream(self, obj, stream):
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         stream.write(0, self.size)
 
-    def to_repr(self, obj):
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
         return "<%d bits padding>" % (self.size,)
 
-    def validate(self, obj):
-        pass
-
-class BitFieldListSerializer(FixedSizeSerializerMixin, FieldListSerializer):
-    def __init__(self, serializers):
-        super(BitFieldListSerializer, self).__init__(serializers)
-        self.bit_size = 0
-        self.size = 0
+class BitFieldListIO(FixedSizer, FieldListIO):
+    def __init__(self, ios):
+        super(BitFieldListIO, self).__init__(ios)
+        if not all([ is_approx_sizer(io) and io.is_fixed_size() for io in self.ios ]):
+            raise InstructError("all fields in a bit field list must be fixed size")
+        self.size = sum([ io.min_max_sizeof().min for io in self.ios ])
+        if (self.size % 8) != 0:
+            raise BitFieldNotInByteBoundry()
+        self.size /= 8
         
-        for serializer in self.serializers:
-            # TODO: make sure we're dealing with bit fields here.
-            self.bit_size += serializer.min_sizeof()
-            
-        if (self.bit_size % 8) != 0:
-            raise BitFieldNotInByteBoundry("Bit field container must have a byte boundry")
-
-        self.size = self.bit_size / 8
-
-    def write_to_stream(self, obj, stream):
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         bit_stream = BitStringIO(self.size)
-        for serializer in self.serializers:
-            serializer.write_to_stream(obj, bit_stream)
+        for io in self.ios:
+            io.write_to_stream(obj, bit_stream, context)
         stream.write(bit_stream.getvalue())
 
-    def read_into_from_stream(self, obj, stream):
+    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         bit_stream = BitStringIO(stream.read(self.size))
-        for serializer in self.serializers:
-            serializer.read_into_from_stream(obj, bit_stream)
+        for io in self.ios:
+            io.read_into_from_stream(obj, bit_stream, context, *args, **kwargs)

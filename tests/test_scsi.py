@@ -30,11 +30,11 @@ class InquiryCommand(Struct):
 
 class StandardInquiryExtendedData(Struct):
     _fields_ = [
-        FixedSizeString("vendor_specific", 20), 
+        PaddedString("vendor_specific", 20), 
         BitFields(BitPadding(5), # reserved
-                  Flag("ius"), # SPC-5 specific
-                  Flag("qas"), # SPC-5 specific
-                  Flag("clocking") # SPC-5 specific
+                  BitFlag("ius"), # SPC-5 specific
+                  BitFlag("qas"), # SPC-5 specific
+                  BitFlag("clocking") # SPC-5 specific
         ),
         Padding(1), # reserved
         FixedSizeBuffer("version_descriptors", 16),
@@ -42,8 +42,8 @@ class StandardInquiryExtendedData(Struct):
     ]
     
 class StandardInquiryData(Struct):
-    def is_extended_data_exist(self, stream):
-        return self.additional_length >= StandardInquiryExtendedData.min_sizeof()
+    def is_extended_data_exist(self, stream, context):
+        return self.additional_length >= StandardInquiryExtendedData.min_max_sizeof().min
     
     _fields_ = [
         Lazy(
@@ -53,46 +53,46 @@ class StandardInquiryData(Struct):
             ),
             BitFields(
                 BitPadding(7),
-                Flag("rmb"),
+                BitFlag("rmb"),
             ),
             UBInt8("version"),
             BitFields(
                 BitField("response_data_format", 4),
-                Flag("hisup"),
-                Flag("normaca"),
+                BitFlag("hisup"),
+                BitFlag("normaca"),
                 BitPadding(2),      # 6-7: obsolete
             ),
             UBInt8("additional_length"),
             BitFields(
-                Flag("protect"),
+                BitFlag("protect"),
                 BitPadding(2), # reserved
-                Flag("3pc"),
+                BitFlag("3pc"),
                 BitField("tpgs", 2),
-                Flag("acc"),
-                Flag("sccs"),
+                BitFlag("acc"),
+                BitFlag("sccs"),
             ),
             BitFields(BitPadding(1), # obsolete
-                      Flag("enc_serv"),
-                      Flag("vs"),
-                      Flag("multi_p"),
+                      BitFlag("enc_serv"),
+                      BitFlag("vs"),
+                      BitFlag("multi_p"),
                       BitPadding(3), # obsolete
-                      Flag("addr16")), # SPC-5 specific
+                      BitFlag("addr16")), # SPC-5 specific
             BitFields(BitPadding(2), # obsolete
-                      Flag("wbus16"), # SPC-5 specific
-                      Flag("sync"), # SPC-5 specific
+                      BitFlag("wbus16"), # SPC-5 specific
+                      BitFlag("sync"), # SPC-5 specific
                       BitPadding(2), # obsolete
-                      Flag("cmd_que"),
-                      Flag("vs")),
-            FixedSizeString("t10_vendor_identification", 8),
-            FixedSizeString("product_identification", 16),
-            FixedSizeString("product_revision_level", 4),
+                      BitFlag("cmd_que"),
+                      BitFlag("vs")),
+            PaddedString("t10_vendor_identification", 8),
+            PaddedString("product_identification", 16),
+            PaddedString("product_revision_level", 4),
         ),
         OptionalField("extended", StandardInquiryExtendedData, is_extended_data_exist)
    ]
 
 def test_inquiry_create():
     command = InquiryCommand(evpd=0, page_code=0x0, allocation_length=96)
-    assert InquiryCommand.to_string(command) == '\x12\x00\x00\x00\x60\x00'
+    assert InquiryCommand.write_to_string(command) == '\x12\x00\x00\x00\x60\x00'
 
 def test_standard_inquiry_parse():
     serialized_data = '\x00\x00\x05\x02[\x00\x00\x00ATA     ST9320423AS     0003\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'

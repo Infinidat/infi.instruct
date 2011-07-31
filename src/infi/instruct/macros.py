@@ -6,7 +6,7 @@ from .fields.bit import BitFieldListIO, BitIO, BitPaddingIO
 from .fields.lazy import LazyFieldListIO
 from .fields.optional import OptionalFieldAdapter
 from .fields.selector import StructSelectorIO
-from .array import SumSizeArrayIO
+from .array import SumSizeArrayIO, FixedSizeArrayIO
 from .mapping import *
 from .padding import *
 from .base import *

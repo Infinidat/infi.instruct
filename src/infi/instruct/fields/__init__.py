@@ -22,13 +22,13 @@ class FieldAdapter(MutatingReader, Writer, ReprCapable):
         value = getattr(obj, self.name, None)
         to_repr = self.io.to_repr if is_repr_capable(self.io) else repr
         return "%s=%s" % (self.name, to_repr(value) if value is not None else "<not set>")
-    
+
     def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         try:
             value = self.io.create_from_stream(stream, *args, **kwargs)
         except InstructError, e:
             raise chain(InstructError("Error occurred while reading field '%s' for class %s" % (self.name, type(obj))))
-        
+
         setattr(obj, self.name, value)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
@@ -37,7 +37,7 @@ class FieldAdapter(MutatingReader, Writer, ReprCapable):
             self.io.write_to_stream(value, stream)
         except InstructError, e:
             raise chain(InstructError("Error occurred while writing field '%s' for class %s" % (self.name, type(obj))))
-    
+
     def prepare_instance(self, obj, args, kwargs):
         if self.name in kwargs:
             setattr(obj, self.name, kwargs.pop(self.name))
@@ -58,15 +58,15 @@ class FieldListIO(MutatingReader, Writer, ReprCapable):
         self.min_max_size = None
         install_mixin_if(self, Sizer, all([ is_sizer(io) for io in self.ios ]))
         install_mixin_if(self, ApproxSizer, all([ is_approx_sizer(io) for io in self.ios ]))
-        
+
     def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         for io in self.ios:
             io.read_into_from_stream(obj, stream, context, *args, **kwargs)
-        
+
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         for io in self.ios:
             io.write_to_stream(obj, stream, context)
-    
+
     def prepare_class(self, cls):
         for io in [ io for io in self.ios if hasattr(io, 'prepare_class') ]:
             io.prepare_class(cls)
@@ -111,7 +111,7 @@ class StructType(type):
             del attrs["__init__"]
         else:
             prev_init = None
-        
+
         new_cls = super(StructType, cls).__new__(cls, name, bases, attrs)
         fields.prepare_class(new_cls)
         setattr(new_cls, "__init__", cls._create_struct_class_init(new_cls, prev_init))
@@ -149,7 +149,7 @@ class Struct(object):
     @classmethod
     def min_max_sizeof(cls, context=EMPTY_CONTEXT):
         return cls._io_.min_max_sizeof(context)
-    
+
     @classmethod
     def sizeof(cls, obj, context=EMPTY_CONTEXT):
         return cls._io_.sizeof(obj, context.writable_copy(dict(parent=obj)))
@@ -164,7 +164,7 @@ class Struct(object):
 
     def write_to_stream(self, stream, context=EMPTY_CONTEXT):
         type(self)._io_.write_to_stream(self, stream, context)
-        
+
     def read_into_from_string(self, string, context=EMPTY_CONTEXT, *args, **kwargs):
         type(self)._io_.read_into_from_string(self, string, context, *args, **kwargs)
 
@@ -179,7 +179,7 @@ class Struct(object):
 
     def __repr__(self):
         return self.to_repr()
-    
+
     def to_repr(self, context=EMPTY_CONTEXT):
         cls = type(self)
         return("%s%s" % (cls.__name__, cls._io_.to_repr(self, context)))

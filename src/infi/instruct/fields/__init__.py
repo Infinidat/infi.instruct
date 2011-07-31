@@ -1,264 +1,197 @@
 import types
 from infi.exceptools import chain
 
-from ..serializer import StaticSerializer
+from ..base import MutatingReader, Writer, ReprCapable, EMPTY_CONTEXT, Sizer, ApproxSizer, is_sizer, is_approx_sizer
+from ..base import is_repr_capable, MinMax
+from ..mixin import install_mixin_if
 from ..errors import InstructError, StructNotWellDefinedError
 
 def copy_if_supported(obj):
     return obj.copy() if hasattr(obj, 'copy') else obj
 
-class FieldBase(object):
-    def write_to_stream(self, instance, stream):
-        raise NotImplementedError()
-
-    def read_from_stream(self, instance, stream):
-        raise NotImplementedError()
-
-    def instance_repr(self, instance):
-        raise NotImplementedError()
-
-    def sizeof(self):
-        return None
-
-    def min_sizeof(self):
-        return self.sizeof() or 0
-
-class FieldContainer(FieldBase):
-    def prepare_class(self, cls):
-        raise NotImplementedError()
-
-    def consume_field_args(self, args, kwargs):
-        values = []
-        for field in self.fields:
-            if isinstance(field, Field):
-                if field.name in kwargs:
-                    values.append((field, kwargs.pop(field.name)))
-                elif len(args) > 0:
-                    values.append((field, args.pop(field.name)))
-            elif hasattr(field, 'consume_field_args'):
-                values += field.consume_field_args(args, kwargs)
-        return values
-
-    def set_instance_field_args(self, instance, values):
-        for field, value in values:
-            field.__set__(instance, value)
-
-    def min_sizeof(self):
-        size = 0
-        for field in self.fields:
-            size += field.min_sizeof()
-        return size
-
-class NamedField(FieldBase):
-    def __init__(self, name):
-        super(NamedField, self).__init__()
+class FieldAdapter(MutatingReader, Writer, ReprCapable):
+    def __init__(self, name, default, io):
+        super(FieldAdapter, self).__init__()
         self.name = name
+        self.default = default
+        self.io = io
+        install_mixin_if(self, Sizer, is_sizer(self.io))
+        install_mixin_if(self, ApproxSizer, is_approx_sizer(self.io))
 
-class Field(NamedField):
-    def __init__(self, name, serializer, default=None):
-        super(Field, self).__init__(name)
-        self.serializer = serializer
-        self.default = copy_if_supported(default)
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        value = getattr(obj, self.name, None)
+        to_repr = self.io.to_repr if is_repr_capable(self.io) else repr
+        return "%s=%s" % (self.name, to_repr(value) if value is not None else "<not set>")
 
-    def write_to_stream(self, instance, stream):
-        self.serializer.write_instance_to_stream(self.__get__(instance, self.name), stream)
+    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        try:
+            value = self.io.create_from_stream(stream, *args, **kwargs)
+        except InstructError, e:
+            raise chain(InstructError("Error occurred while reading field '%s' for class %s" % (self.name, type(obj))))
 
-    def read_from_stream(self, instance, stream):
-        self.__set__(instance, self.serializer.create_instance_from_stream(stream))
-    
-    def __set__(self, instance, value):
-        instance._values_[self.name] = value
-    
-    def __get__(self, instance, owner):
-        return instance._values_.get(self.name, self.default)
+        setattr(obj, self.name, value)
 
-    def instance_repr(self, instance):
-        has_value = self.name in instance._values_
-        value_str = None
-        if not has_value and self.default is not None:
-            value_str = "%s (default)" % self.serializer.instance_repr(self.default)
-        elif not has_value:
-            value_str = "<not set>"
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        value = getattr(obj, self.name, None)
+        try:
+            self.io.write_to_stream(value, stream)
+        except InstructError, e:
+            raise chain(InstructError("Error occurred while writing field '%s' for class %s" % (self.name, type(obj))))
+
+    def prepare_instance(self, obj, args, kwargs):
+        if self.name in kwargs:
+            setattr(obj, self.name, kwargs.pop(self.name))
         else:
-            value_str = self.serializer.instance_repr(instance._values_[self.name])
-        return value_str
+            setattr(obj, self.name, copy_if_supported(self.default))
 
-    def sizeof(self):
-        return self.serializer.sizeof()
+    # Conditional implementations (added only if sizer is a Sizer/ApproxSizer)
+    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
+        return self.io.sizeof(obj, context)
 
-class ConstField(NamedField):
-    def __init__(self, name, value, serializer=None):
-        super(ConstField, self).__init__(name)
-        self.value = value
-        self.serializer = serializer or value
+    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
+        return self.io.min_max_sizeof(context)
 
-    def write_to_stream(self, instance, stream):
-        self.serializer.write_instance_to_stream(self.value, stream)
+class FieldListIO(MutatingReader, Writer, ReprCapable):
+    def __init__(self, ios):
+        super(FieldListIO, self).__init__()
+        self.ios = ios
+        self.min_max_size = None
+        install_mixin_if(self, Sizer, all([ is_sizer(io) for io in self.ios ]))
+        install_mixin_if(self, ApproxSizer, all([ is_approx_sizer(io) for io in self.ios ]))
 
-    def read_from_stream(self, instance, stream):
-        stream.read(self.serializer.sizeof())
-    
-    def __get__(self, instance, owner):
-        return self.value
+    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        for io in self.ios:
+            io.read_into_from_stream(obj, stream, context, *args, **kwargs)
 
-    def instance_repr(self, instance):
-        return "%s (const)" % self.serializer.instance_repr(self.value)
-
-    def sizeof(self):
-        return self.serializer.sizeof()
-
-class Padding(FieldBase):
-    def __init__(self, size, char="\x00"):
-        super(Padding, self).__init__()
-        self.size = size
-        self.char = char
-
-    def write_to_stream(self, instance, stream):
-        stream.write(self.char * self.size)
-
-    def read_from_stream(self, instance, stream):
-        stream.read(self.size)
-
-    def sizeof(self):
-        return self.size
-
-    def instance_repr(self, instance):
-        return "<%d bytes padding>" % (self.size,)
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        for io in self.ios:
+            io.write_to_stream(obj, stream, context)
 
     def prepare_class(self, cls):
-        pass
+        for io in [ io for io in self.ios if hasattr(io, 'prepare_class') ]:
+            io.prepare_class(cls)
 
-class PlainFieldContainer(FieldContainer):
-    def __init__(self, fields):
-        super(PlainFieldContainer, self).__init__()
-        self.fields = fields
+    def prepare_instance(self, obj, args, kwargs):
+        # Called from the modified __init__ method of the class.
+        # We made this a separate method so all the defaults will be initialized before the user's ctor is called.
+        for io in [ io for io in self.ios if hasattr(io, 'prepare_instance') ]:
+            io.prepare_instance(obj, args, kwargs)
 
-    def prepare_class(self, cls):
-        for field in self.fields:
-            if isinstance(field, NamedField):
-                setattr(cls, field.name, field)
-            else:
-                field.prepare_class(cls)
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        return "(" + ", ".join([ (io.to_repr(obj, context) if is_repr_capable(io) else repr(obj)) for io in self.ios ]) + ")"
 
-    def write_to_stream(self, instance, stream):
-        for field in self.fields:
-            try:
-                field.write_to_stream(instance, stream)
-            except:
-                raise chain(InstructError("write_to_stream failed while writing field %s" % (field,)))
+    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
+        return sum([ io.sizeof(obj, context) for io in self.ios ])
 
-    def read_from_stream(self, instance, stream):
-        for field in self.fields:
-            field.read_from_stream(instance, stream)
+    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
+        if self.min_max_size is None:
+            self.min_max_size = MinMax(sum([ io.min_max_sizeof(context).min for io in self.ios ]),
+                                       sum([ io.min_max_sizeof(context).max for io in self.ios ]))
+        return self.min_max_size
 
-    def instance_repr(self, instance):
-        buf = []
-        for field in self.fields:
-            if isinstance(field, NamedField):
-                buf.append("%s=%s" % (field.name, field.instance_repr(instance)))
-            else:
-                buf.append(field.instance_repr(instance))
-        return ", ".join(buf)
+class StructType(type):
+    def __new__(cls, name, bases, attrs):
+        # If we initialize our own class don't do any modifications.
+        if name == "Struct":
+            return super(StructType, cls).__new__(cls, name, bases, attrs)
 
-    def sizeof(self):
-        size = 0
-        for field in self.fields:
-            field_size = field.sizeof()
-            if field_size is None:
-                return None
-            size += field_size
-        return size
+        if "_fields_" not in attrs:
+            raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (name,))
 
-class Struct(StaticSerializer):
-    def __init__(self, *args, **kwargs):
-        args = list(args)
-        kwargs = kwargs.copy()
-        # TODO: do we want to assert here that instruct is in the stack, to make sure people use create() and not
-        # initialize the object on their own?
-        
-        cls = type(self)
-        cls._init_class_fields_if_needed()
-        values = cls._fields_.consume_field_args(args, kwargs)
-        
-        super(Struct, self).__init__(*args, **kwargs)
-        self._values_ = {}
+        fields = attrs["_fields_"]
+        if isinstance(fields, (types.ListType, types.TupleType)):
+            fields = FieldListIO(fields)
 
-        cls._fields_.set_instance_field_args(self, values)
+        attrs["_io_"] = fields
+
+        # We want to first put our own __init__ method that will initialize all the fields passed by kwargs and then
+        # call the user's __init__ method (if exists) with args/kwargs left.
+        if "__init__" in attrs:
+            prev_init = attrs["__init__"]
+            del attrs["__init__"]
+        else:
+            prev_init = None
+
+        new_cls = super(StructType, cls).__new__(cls, name, bases, attrs)
+        fields.prepare_class(new_cls)
+        setattr(new_cls, "__init__", cls._create_struct_class_init(new_cls, prev_init))
+        return new_cls
 
     @classmethod
-    def create(cls, *args, **kwargs):
-        cls._init_class_fields_if_needed()
-            
-        args = list(args)
-        kwargs = kwargs.copy()
-        values = cls._fields_.consume_field_args(args, kwargs)
+    def _create_struct_class_init(cls, new_cls, prev_init):
+        def __instance_init__(self, *args, **kwargs):
+            new_cls._io_.prepare_instance(self, args, kwargs)
+            if prev_init is None:
+                super(new_cls, self).__init__(*args, **kwargs)
+            else:
+                prev_init(self, *args, **kwargs)
+        return __instance_init__
 
+class Struct(object):
+    __metaclass__ = StructType
+
+    @classmethod
+    def write_to_stream(cls, obj, stream, context=EMPTY_CONTEXT):
+        type(obj)._io_.write_to_stream(obj, stream, context.writable_copy(dict(parent=obj)))
+
+    @classmethod
+    def create_from_string(cls, string, context=EMPTY_CONTEXT, *args, **kwargs):
         obj = cls(*args, **kwargs)
-        cls._fields_.set_instance_field_args(obj, values)
-        
+        cls._io_.read_into_from_string(obj, string, context.writable_copy(dict(parent=obj)), *args, **kwargs)
         return obj
 
-    def validate(self):
-        cls = type(self)
-        cls._fields_.validate(self)
+    @classmethod
+    def create_from_stream(cls, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        obj = cls(*args, **kwargs)
+        cls._io_.read_into_from_stream(obj, stream, context.writable_copy(dict(parent=obj)), *args, **kwargs)
+        return obj
+
+    @classmethod
+    def min_max_sizeof(cls, context=EMPTY_CONTEXT):
+        return cls._io_.min_max_sizeof(context)
+
+    @classmethod
+    def sizeof(cls, obj, context=EMPTY_CONTEXT):
+        return cls._io_.sizeof(obj, context.writable_copy(dict(parent=obj)))
+
+    @classmethod
+    def write_to_string(cls, obj, context=EMPTY_CONTEXT):
+        return type(obj)._io_.write_to_string(obj, context.writable_copy(dict(parent=obj)))
+
+    @classmethod
+    def to_repr(cls, obj, context=EMPTY_CONTEXT):
+        return type(obj)._io_.to_repr(obj, context.writable_copy(dict(parent=obj)))
+
+    def write_to_stream(self, stream, context=EMPTY_CONTEXT):
+        type(self)._io_.write_to_stream(self, stream, context)
+
+    def read_into_from_string(self, string, context=EMPTY_CONTEXT, *args, **kwargs):
+        type(self)._io_.read_into_from_string(self, string, context, *args, **kwargs)
+
+    def read_into_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        type(self)._io_.read_into_from_stream(self, stream, context, *args, **kwargs)
+
+    def sizeof(self, context=EMPTY_CONTEXT):
+        return type(self)._io_.sizeof(self, context)
 
     def __str__(self):
+        return type(self)._io_.write_to_string(self)
+
+    def __repr__(self):
+        return self.to_repr()
+
+    def to_repr(self, context=EMPTY_CONTEXT):
         cls = type(self)
-        return("%s(%s)" % (cls.__name__, self._fields_.instance_repr(self)))
+        return("%s%s" % (cls.__name__, cls._io_.to_repr(self, context)))
 
-    # Serializer methods:
-    
+    # Backward compatibility (0.10)
+    # BEGIN DEPRECATION
     @classmethod
-    def write_instance_to_stream(cls, obj, stream):
-        if obj is None:
-            # TODO: exceptions
-            raise ValueError("write_instance_to_stream called with a None object for class %s" % cls)
+    def create(cls, *args, **kwargs):
+        return cls(*args, **kwargs)
 
-        cls._fields_.write_to_stream(obj, stream)
-    
-    @classmethod
-    def create_instance_from_stream(cls, stream, *args, **kwargs):
-        cls._init_class_fields_if_needed()
-        
-        args = list(args)
-        kwargs = kwargs.copy()
-        values = cls._fields_.consume_field_args(args, kwargs)
-
-        obj = cls(*args, **kwargs)
-        
-        cls._fields_.set_instance_field_args(obj, values)
-
-        cls._fields_.read_from_stream(obj, stream)
-
-        return obj
-
-    @classmethod
-    def instance_repr(cls, obj):
-        return str(obj)
-
-    @classmethod
-    def sizeof(cls):
-        cls._init_class_fields_if_needed()
-        return cls._fields_.sizeof()
-
-    @classmethod
-    def min_sizeof(cls):
-        cls._init_class_fields_if_needed()
-        return cls._fields_.min_sizeof()
-
-    # Private methods:
-    @classmethod
-    def _init_class_fields_if_needed(cls):
-        if hasattr(cls, '_struct_initialized_'):
-            return
-        
-        if not hasattr(cls, '_fields_'):
-            raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (cls.__name__,))
-        
-        fields = cls._fields_
-        
-        if isinstance(fields, (types.ListType, types.TupleType)):
-            fields = PlainFieldContainer(fields)
-        cls._fields_ = fields
-        cls._fields_.prepare_class(cls)
-        setattr(cls, '_struct_initialized_', True)
+    create_instance_from_stream = create_from_stream
+    create_instance_from_string = create_from_string
+    write_instance_to_stream = write_to_stream
+    instance_to_string = write_to_string
+    # END DEPRECATION

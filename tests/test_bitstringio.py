@@ -1,7 +1,7 @@
 import binascii
 from StringIO import StringIO
 
-from infi.instruct.fields.bit import BitStringIO
+from infi.instruct.fields.bitstringio import BitStringIO
 
 def test_byte_write():
     io = BitStringIO(1)

@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import struct
 import types
 from infi.exceptools import chain

@@ -1,11 +1,11 @@
 import functools
 
-from .fields import Struct, FieldAdapter
-from .fields.const import ConstFieldAdapter
-from .fields.bit import BitFieldListIO, BitIO, BitPaddingIO
-from .fields.lazy import LazyFieldListIO
-from .fields.optional import OptionalFieldAdapter
-from .fields.selector import StructSelectorIO
+from .struct import Struct, FieldAdapter
+from .struct.const import ConstFieldAdapter
+from .struct.bit import BitFieldListIO, BitIO, BitPaddingIO
+from .struct.lazy import LazyFieldListIO
+from .struct.optional import OptionalFieldAdapter
+from .struct.selector import StructSelectorIO
 from .array import SumSizeArrayIO, FixedSizeArrayIO
 from .mapping import *
 from .padding import *

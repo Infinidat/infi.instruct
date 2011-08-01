@@ -95,15 +95,6 @@ class StructType(type):
         if name == "Struct":
             return super(StructType, cls).__new__(cls, name, bases, attrs)
 
-        if "_fields_" not in attrs:
-            raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (name,))
-
-        fields = attrs["_fields_"]
-        if isinstance(fields, (types.ListType, types.TupleType)):
-            fields = FieldListIO(fields)
-
-        attrs["_io_"] = fields
-
         # We want to first put our own __init__ method that will initialize all the fields passed by kwargs and then
         # call the user's __init__ method (if exists) with args/kwargs left.
         if "__init__" in attrs:
@@ -113,6 +104,16 @@ class StructType(type):
             prev_init = None
 
         new_cls = super(StructType, cls).__new__(cls, name, bases, attrs)
+
+        if not hasattr(new_cls, "_fields_"):
+            raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (name,))
+
+        fields = getattr(new_cls, "_fields_")
+        if isinstance(fields, (types.ListType, types.TupleType)):
+            fields = FieldListIO(fields)
+
+        setattr(new_cls, "_io_", fields)
+
         fields.prepare_class(new_cls)
         setattr(new_cls, "__init__", cls._create_struct_class_init(new_cls, prev_init))
         return new_cls

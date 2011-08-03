@@ -66,10 +66,13 @@ def FixedSizeArray(name, n, element_io, default=None):
 def SumSizeArray(name, size_io, element_io, default=None):
     return FieldAdapter(name, default, SumSizeArrayIO(size_io, element_io))
 
-def PaddedString(name, size, padding="\x00", default=None):
+def PaddedString(name, size, padding="\x00", padding_direction=PADDING_DIRECTION_RIGHT, default=None):
     if default is not None:
-        assert len(default) == size
-    return FieldAdapter(name, default, PaddedStringIO(size, padding))
+        assert len(default) <= size
+    return FieldAdapter(name, default, PaddedStringIO(size, padding, padding_direction))
+
+def VarSizeString(name, size_io, padding="\x00", padding_direction=PADDING_DIRECTION_RIGHT, default=None):
+    return FieldAdapter(name, default, VarSizeStringIO(size_io, padding, padding_direction))
 
 # Backward compatibility
 FixedSizeString = PaddedString

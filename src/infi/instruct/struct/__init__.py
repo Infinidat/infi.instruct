@@ -181,6 +181,9 @@ class Struct(object):
     def read_into_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         type(self)._io_.read_into_from_stream(self, stream, context, *args, **kwargs)
 
+    def write_to_string(self, context=EMPTY_CONTEXT):
+        return type(self)._io_.write_to_string(self, context.writable_copy(dict(parent=self)))
+
     def sizeof(self, context=EMPTY_CONTEXT):
         return type(self)._io_.sizeof(self, context)
 

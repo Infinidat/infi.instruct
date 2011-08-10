@@ -40,7 +40,10 @@ class MinMax(object):
         return self.min == obj.min and self.max == obj.max
 
     def __str__(self):
-        return "MinMax(min=%d, max=%d)" % (self.min, self.max)
+        return "MinMax(min=%d, max=%s)" % (self.min, self.max if self.max < sys.maxint else "unbounded")
+
+    def __repr__(self):
+        return str(self)
 
 UNBOUNDED_MIN_MAX = MinMax(0, sys.maxint)
 

@@ -54,7 +54,7 @@ class FuncStructSelectorIO(AllocatingReader, Writer, Sizer, ReprCapable):
     def __init__(self, func, min_max_size=None):
         super(FuncStructSelectorIO, self).__init__()
         self.func = func
-        self.min_max_size = MinMax.from_argument(min_max_size)
+        self.min_max_size = MinMax(min_max_size)
         install_mixin_if(self, ApproxSizer, self.min_max_size is not None)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):

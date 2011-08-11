@@ -1,4 +1,5 @@
 import sys
+import collections
 from cStringIO import StringIO
 
 class ReadOnlyContext(object):
@@ -25,34 +26,30 @@ class WritableContext(ReadOnlyContext):
 
 EMPTY_CONTEXT = ReadOnlyContext()
 
-class MinMax(object):
-    def __init__(self, min_val, max_val=sys.maxint):
-        self.min = max(0, min_val)
-        self.max = min(max_val, sys.maxint)
+class MinMax(collections.namedtuple('MinMax', 'min max')):
+    __slots__ = ()
+    
+    def __new__(cls, min_val_or_tuple=0, max_val=sys.maxint):
+        if isinstance(min_val_or_tuple, (list, tuple, MinMax)):
+            assert len(min_val_or_tuple) == 2
+            min_val, max_val = min_val_or_tuple
+        else:
+            min_val = min_val_or_tuple
+        
+        assert min_val <= max_val
+        return super(MinMax, cls).__new__(cls, max(0, min_val), min(max_val, sys.maxint))
 
-    def add(self, min_max):
-        return MinMax(min(min_max.min + self.min, sys.maxint), min(sys.maxint, min_max.max + self.max))
+    def __add__(self, min_max):
+        return MinMax(min_max.min + self.min, min_max.max + self.max)
 
     def is_unbounded(self):
         return self.max >= sys.maxint
-
-    def __eq__(self, obj):
-        return self.min == obj.min and self.max == obj.max
 
     def __str__(self):
         return "MinMax(min=%d, max=%s)" % (self.min, self.max if self.max < sys.maxint else "unbounded")
 
     def __repr__(self):
         return str(self)
-
-    @classmethod
-    def from_argument(cls, arg):
-        if arg is None or isinstance(arg, MinMax):
-            return arg
-        elif isinstance(arg, (tuple, list)):
-            assert len(arg) == 2
-            return MinMax(arg[0], arg[1])
-        raise ValueError("from_argument expects a MinMax object or a pair")
 
 UNBOUNDED_MIN_MAX = MinMax(0, sys.maxint)
 

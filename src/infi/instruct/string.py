@@ -79,7 +79,7 @@ class VarSizeStringIO(AllocatingReader, Writer, ReprCapable):
         return self.size_io.sizeof(obj) + len(obj)
 
     def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.size_io.min_max_sizeof().add(UNBOUNDED_MIN_MAX)
+        return self.size_io.min_max_sizeof() + UNBOUNDED_MIN_MAX
 
 class FixedSizeBufferIO(PaddedStringIO):
     def __init__(self, size):

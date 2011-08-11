@@ -1,11 +1,11 @@
 import functools
 
-from .fields import Struct, FieldAdapter
-from .fields.const import ConstFieldAdapter
-from .fields.bit import BitFieldListIO, BitIO, BitPaddingIO
-from .fields.lazy import LazyFieldListIO
-from .fields.optional import OptionalFieldAdapter
-from .fields.selector import StructSelectorIO
+from .struct import Struct, FieldAdapter
+from .struct.const import ConstFieldAdapter
+from .struct.bit import BitFieldListIO, BitIO, BitPaddingIO
+from .struct.lazy import LazyFieldListIO
+from .struct.optional import OptionalFieldAdapter
+from .struct.selector import StructSelectorIO, FuncStructSelectorIO
 from .array import SumSizeArrayIO, FixedSizeArrayIO
 from .mapping import *
 from .padding import *
@@ -14,9 +14,36 @@ from .numeric import *
 from .string import *
 
 def Field(name, io, default=None):
+    """
+    Macro helper to create a new `FieldAdapter` used in a `FieldListIO` instance.
+
+    :param name: name of the field
+    :param io: an I/O instance used to serializer/deserialize this field
+    :param default: default value of the field if not set by user
+    :rtype: FieldAdapter
+    """
     return FieldAdapter(name, default, io)
 
 def ConstField(name, value, io=None):
+    """
+    Macro helper to create a new `ConstFieldAdapter` used in a `FieldListIO` instance.
+
+    This macro can be used in several methods:
+
+    >>> ConstField("foo", 5, UBInt8)
+
+    This created a constant field called ``foo`` with a value of 5 and is serialized/deserialized using UBInt8.
+
+    >>> ConstField("foo", MyStruct(my_field=1, my_other_field=2))
+
+    This time ``foo`` is set with the ``MyStruct`` instance passed here. Notice that we don't need to pass an I/O
+    argument because the value is an I/O instance by itself.
+
+    :param name: name of the field
+    :param value: the value to use as a constant
+    :param io: an I/O instance used to serializer/deserialize this field (optional if ``value`` is an I/O by itself)
+    :rtype: FieldAdapter
+    """
     if io is None:
         io = value
     if isinstance(io, Struct):
@@ -66,10 +93,13 @@ def FixedSizeArray(name, n, element_io, default=None):
 def SumSizeArray(name, size_io, element_io, default=None):
     return FieldAdapter(name, default, SumSizeArrayIO(size_io, element_io))
 
-def PaddedString(name, size, padding="\x00", default=None):
+def PaddedString(name, size, padding="\x00", padding_direction=PADDING_DIRECTION_RIGHT, default=None):
     if default is not None:
-        assert len(default) == size
-    return FieldAdapter(name, default, PaddedStringIO(size, padding))
+        assert len(default) <= size
+    return FieldAdapter(name, default, PaddedStringIO(size, padding, padding_direction))
+
+def VarSizeString(name, size_io, padding="\x00", padding_direction=PADDING_DIRECTION_RIGHT, default=None):
+    return FieldAdapter(name, default, VarSizeStringIO(size_io, padding, padding_direction))
 
 # Backward compatibility
 FixedSizeString = PaddedString
@@ -87,6 +117,14 @@ def Lazy(*args):
 
 def StructSelector(key_io, mapping, default=None):
     return StructSelectorIO(key_io, mapping, default)
+
+def StructFunc(func):
+    def wrapper(stream, context):
+        return func(context.get('parent', None), stream, context)
+    return wrapper
+
+def SelectStructByFunc(name, func, min_max_size=None, default=None):
+    return FieldAdapter(name, default, FuncStructSelectorIO(StructFunc(func), min_max_size))
 
 # Shortcut to allow users to use either UBInt8 as a serializer (e.g. in an array) or as a field (e.g. UBInt8("foo", 4))
 class IOWithField(AllocatingReader, Writer, Sizer, ApproxSizer, ReprCapable):

@@ -4,18 +4,24 @@
    contain the root `toctree` directive.
 
 Welcome to instruct's documentation!
-================================
+====================================
 
 .. _index:
 
 .. include:: ../README.rst
 
-Contents:
+Contents
+========
 
 .. toctree::
    :maxdepth: 2
 
-   features
+   getting_started
+   struct
+   bit
+   strings
+   io_reference
+   extending
    
 Indices and tables
 ==================
@@ -23,4 +29,3 @@ Indices and tables
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
-

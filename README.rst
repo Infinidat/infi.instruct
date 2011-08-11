@@ -1,43 +1,17 @@
-==============
- Introduction
-==============
-Instruct is a Python library for declaring object structure and then serializing/deserializing it.
+Instruct is a Python library for creating serializable objects in a (more) declarative way. It is based on ctypes__ view of defining a struct as a class, and on Construct__'s method of declaring var-sized fields.
 
-Writer:
-  write_to_stream(self, obj, stream)
+__ http://docs.python.org/library/ctypes.html
+__ http://construct.wikispaces.com/
 
-ReaderBase:
-  sizeof
-  min_sizeof
-  is_fixed_size
+What makes Instruct different from ctypes?
+ * ctypes does not handle serialization/deserialization.
+ * ctypes isn't really suitable for variable length structs.
 
-InitializingReader:
-  create_from_stream(self, stream, ...)
+What makes Instruct different from construct?
+ * With Instruct your struct is a first-class object, in the sense that it's a class so you can add methods, initializer, and even customize the serialization/deserialization process.
+ * There's no "Container" object to initialize fields. You simply create your own object and take it from there.
 
-ModifyingReader:
-  read_into_from_stream(self, obj, stream, ...)
-
-
-==============
- Installation
-==============
-Install using the regular setup.py
-::
-
-  python setup.py install
-
-=========
- Running
-=========
-To run the simulator in its simplest mode, just run:
-::
-
-  run_infinidat_simulator -v -F
-
-=============
- Development
-=============
-
-The Command Interface
-=====================
-(work in progress)
+Some of the things you gain by using Instruct:
+ * Help with instance construction. You can set default values to fields, set values on construction and write your own constructor.
+ * Object sizing. You can determine how many bytes an instance will occupy when serializing, or estimate the number of bytes a class will take.
+ * Nice representation. No more writing your own ``__repr__`` implementation.

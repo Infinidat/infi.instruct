@@ -12,6 +12,7 @@ def test_optional():
         ]
 
     obj = MyStruct(boo=1)
+    assert obj.boo == 1, obj.boo
     assert obj.foo is None, repr(obj.foo)
 
     assert MyStruct.write_to_string(obj) == "\x01"

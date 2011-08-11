@@ -1,7 +1,13 @@
 import sys
+import collections
 from cStringIO import StringIO
 
 class ReadOnlyContext(object):
+    """
+    Context is a holder of properties that can modify and aid the marshalling process. It is used internally by Instruct
+    to communicate additional information between marshalling components and can be used by the user to modify the
+    marshalling behavior.
+    """
     def __init__(self, d={}):
         self.d = d
         
@@ -25,22 +31,41 @@ class WritableContext(ReadOnlyContext):
 
 EMPTY_CONTEXT = ReadOnlyContext()
 
-class MinMax(object):
-    def __init__(self, min_val, max_val=sys.maxint):
-        self.min = max(0, min_val)
-        self.max = min(max_val, sys.maxint)
+class MinMax(collections.namedtuple('MinMax', 'min max')):
+    """
+    MinMax is a simple object containing a minimum value and a maximum value. Values are clipped to be [0, sys.maxint].
+    You can access the min/max values by the *min* or *max* properties or by index ([0], [1]).
+    """
+    __slots__ = ()
+    
+    def __new__(cls, min_val_or_tuple=0, max_val=sys.maxint):
+        """
+        Initialize a new MinMax instance. This initializer works in four different modes:
+         * Copy constructor. If you pass it a MinMax object it'll copy the min/max values.
+         * Construct from tuple/list. Construct the min/max by accessing [0] and [1].
+         * Construct from a single argument. User provides the min value, max is set to sys.maxint.
+         * Construct from two arguments. User provides the min and max values.
+        """
+        if isinstance(min_val_or_tuple, (list, tuple, MinMax)):
+            assert len(min_val_or_tuple) == 2
+            min_val, max_val = min_val_or_tuple
+        else:
+            min_val = min_val_or_tuple
+        
+        assert min_val <= max_val
+        return super(MinMax, cls).__new__(cls, max(0, min_val), min(max_val, sys.maxint))
 
-    def add(self, min_max):
-        return MinMax(min(min_max.min + self.min, sys.maxint), min(sys.maxint, min_max.max + self.max))
+    def __add__(self, min_max):
+        return MinMax(min_max.min + self.min, min_max.max + self.max)
 
     def is_unbounded(self):
         return self.max >= sys.maxint
 
-    def __eq__(self, obj):
-        return self.min == obj.min and self.max == obj.max
-
     def __str__(self):
-        return "MinMax(min=%d, max=%d)" % (self.min, self.max)
+        return "MinMax(min=%d, max=%s)" % (self.min, self.max if self.max < sys.maxint else "unbounded")
+
+    def __repr__(self):
+        return str(self)
 
 UNBOUNDED_MIN_MAX = MinMax(0, sys.maxint)
 

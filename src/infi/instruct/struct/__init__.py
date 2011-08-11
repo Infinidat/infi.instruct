@@ -41,7 +41,7 @@ class FieldAdapter(MutatingReader, Writer, ReprCapable):
     def prepare_instance(self, obj, args, kwargs):
         if self.name in kwargs:
             setattr(obj, self.name, kwargs.pop(self.name))
-        else:
+        elif not hasattr(obj, self.name):
             setattr(obj, self.name, copy_if_supported(self.default))
 
     # Conditional implementations (added only if sizer is a Sizer/ApproxSizer)
@@ -95,40 +95,50 @@ class StructType(type):
         if name == "Struct":
             return super(StructType, cls).__new__(cls, name, bases, attrs)
 
-        if "_fields_" not in attrs:
-            raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (name,))
-
-        fields = attrs["_fields_"]
-        if isinstance(fields, (types.ListType, types.TupleType)):
-            fields = FieldListIO(fields)
-
-        attrs["_io_"] = fields
-
         # We want to first put our own __init__ method that will initialize all the fields passed by kwargs and then
         # call the user's __init__ method (if exists) with args/kwargs left.
         if "__init__" in attrs:
-            prev_init = attrs["__init__"]
+            user_init = attrs["__init__"]
             del attrs["__init__"]
         else:
-            prev_init = None
+            user_init = None
 
         new_cls = super(StructType, cls).__new__(cls, name, bases, attrs)
+
+        # We wait for the class to be created to check the fields, because we want to take advantage of Python's MRO
+        # to resolve the _fields_ structure.
+        if not hasattr(new_cls, "_fields_"):
+            raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (name,))
+
+        fields = getattr(new_cls, "_fields_")
+        if isinstance(fields, (types.ListType, types.TupleType)):
+            fields = FieldListIO(fields)
+
+        setattr(new_cls, "_io_", fields)
+
         fields.prepare_class(new_cls)
-        setattr(new_cls, "__init__", cls._create_struct_class_init(new_cls, prev_init))
+
+        setattr(new_cls, "__init__", cls._create_struct_class_init(new_cls, user_init))
         return new_cls
 
     @classmethod
-    def _create_struct_class_init(cls, new_cls, prev_init):
+    def _create_struct_class_init(cls, new_cls, user_init):
         def __instance_init__(self, *args, **kwargs):
-            new_cls._io_.prepare_instance(self, args, kwargs)
-            if prev_init is None:
+            if type(self) == new_cls:
+                # Only do our magic if we're the bottom-most class.
+                new_cls._io_.prepare_instance(self, args, kwargs)
+            if user_init is None:
                 super(new_cls, self).__init__(*args, **kwargs)
             else:
-                prev_init(self, *args, **kwargs)
+                user_init(self, *args, **kwargs)
         return __instance_init__
 
 class Struct(object):
     __metaclass__ = StructType
+
+    def __init__(self, *args, **kwargs):
+        super(Struct, self).__init__()
+        type(self)._io_.prepare_instance(self, args, kwargs)
 
     @classmethod
     def write_to_stream(cls, obj, stream, context=EMPTY_CONTEXT):
@@ -170,6 +180,9 @@ class Struct(object):
 
     def read_into_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         type(self)._io_.read_into_from_stream(self, stream, context, *args, **kwargs)
+
+    def write_to_string(self, context=EMPTY_CONTEXT):
+        return type(self)._io_.write_to_string(self, context.writable_copy(dict(parent=self)))
 
     def sizeof(self, context=EMPTY_CONTEXT):
         return type(self)._io_.sizeof(self, context)

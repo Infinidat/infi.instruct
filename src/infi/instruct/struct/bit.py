@@ -52,3 +52,6 @@ class BitFieldListIO(FixedSizer, FieldListIO):
         bit_stream = BitStringIO(stream.read(self.size))
         for io in self.ios:
             io.read_into_from_stream(obj, bit_stream, context, *args, **kwargs)
+
+    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
+        return self.size

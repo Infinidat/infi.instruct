@@ -5,7 +5,7 @@ from .struct.const import ConstFieldAdapter
 from .struct.bit import BitFieldListIO, BitIO, BitPaddingIO
 from .struct.lazy import LazyFieldListIO
 from .struct.optional import OptionalFieldAdapter
-from .struct.selector import StructSelectorIO
+from .struct.selector import StructSelectorIO, FuncStructSelectorIO
 from .array import SumSizeArrayIO, FixedSizeArrayIO
 from .mapping import *
 from .padding import *
@@ -14,9 +14,36 @@ from .numeric import *
 from .string import *
 
 def Field(name, io, default=None):
+    """
+    Macro helper to create a new `FieldAdapter` used in a `FieldListIO` instance.
+
+    :param name: name of the field
+    :param io: an I/O instance used to serializer/deserialize this field
+    :param default: default value of the field if not set by user
+    :rtype: FieldAdapter
+    """
     return FieldAdapter(name, default, io)
 
 def ConstField(name, value, io=None):
+    """
+    Macro helper to create a new `ConstFieldAdapter` used in a `FieldListIO` instance.
+
+    This macro can be used in several methods:
+
+    >>> ConstField("foo", 5, UBInt8)
+
+    This created a constant field called ``foo`` with a value of 5 and is serialized/deserialized using UBInt8.
+
+    >>> ConstField("foo", MyStruct(my_field=1, my_other_field=2))
+
+    This time ``foo`` is set with the ``MyStruct`` instance passed here. Notice that we don't need to pass an I/O
+    argument because the value is an I/O instance by itself.
+
+    :param name: name of the field
+    :param value: the value to use as a constant
+    :param io: an I/O instance used to serializer/deserialize this field (optional if ``value`` is an I/O by itself)
+    :rtype: FieldAdapter
+    """
     if io is None:
         io = value
     if isinstance(io, Struct):
@@ -90,6 +117,14 @@ def Lazy(*args):
 
 def StructSelector(key_io, mapping, default=None):
     return StructSelectorIO(key_io, mapping, default)
+
+def StructFunc(func):
+    def wrapper(stream, context):
+        return func(context.get('parent', None), stream, context)
+    return wrapper
+
+def SelectStructByFunc(name, func, min_max_size=None, default=None):
+    return FieldAdapter(name, default, FuncStructSelectorIO(StructFunc(func), min_max_size))
 
 # Shortcut to allow users to use either UBInt8 as a serializer (e.g. in an array) or as a field (e.g. UBInt8("foo", 4))
 class IOWithField(AllocatingReader, Writer, Sizer, ApproxSizer, ReprCapable):

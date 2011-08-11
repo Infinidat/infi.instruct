@@ -45,6 +45,15 @@ class MinMax(object):
     def __repr__(self):
         return str(self)
 
+    @classmethod
+    def from_argument(cls, arg):
+        if arg is None or isinstance(arg, MinMax):
+            return arg
+        elif isinstance(arg, (tuple, list)):
+            assert len(arg) == 2
+            return MinMax(arg[0], arg[1])
+        raise ValueError("from_argument expects a MinMax object or a pair")
+
 UNBOUNDED_MIN_MAX = MinMax(0, sys.maxint)
 
 class AllocatingReader(object):

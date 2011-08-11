@@ -132,6 +132,9 @@ Or simply set them::
       self.size = 255
       self.name = "Guybrush"
 
+Serializing Structs
+-------------------
+
 Stuff to write about:
  * _fields_
  * sizeof()

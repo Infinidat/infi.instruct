@@ -10,3 +10,6 @@
 .. autofunction:: Field
 
 .. autofunction:: ConstField
+
+.. autoclass:: MinMax([ min_or_tuple_or_minmax=0, [ max=sys.maxint ]])
+  :members: __new__

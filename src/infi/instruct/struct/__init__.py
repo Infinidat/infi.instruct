@@ -1,22 +1,30 @@
 import types
 from infi.exceptools import chain
+from infi.pyutils.mixin import install_mixin_if
 
 from ..base import MutatingReader, Writer, ReprCapable, EMPTY_CONTEXT, Sizer, ApproxSizer, is_sizer, is_approx_sizer
 from ..base import is_repr_capable, MinMax
-from ..mixin import install_mixin_if
 from ..errors import InstructError, StructNotWellDefinedError
 
 def copy_if_supported(obj):
     return obj.copy() if hasattr(obj, 'copy') else obj
 
 class FieldAdapter(MutatingReader, Writer, ReprCapable):
+    class MySizer(Sizer):
+        def sizeof(self, obj, context=EMPTY_CONTEXT):
+            return self.io.sizeof(obj, context)
+
+    class MyApproxSizer(ApproxSizer):
+        def min_max_sizeof(self, context=EMPTY_CONTEXT):
+            return self.io.min_max_sizeof(context)
+    
     def __init__(self, name, default, io):
         super(FieldAdapter, self).__init__()
         self.name = name
         self.default = default
         self.io = io
-        install_mixin_if(self, Sizer, is_sizer(self.io))
-        install_mixin_if(self, ApproxSizer, is_approx_sizer(self.io))
+        install_mixin_if(self, FieldAdapter.MySizer, is_sizer(self.io))
+        install_mixin_if(self, FieldAdapter.MyApproxSizer, is_approx_sizer(self.io))
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         value = getattr(obj, self.name, None)
@@ -44,20 +52,23 @@ class FieldAdapter(MutatingReader, Writer, ReprCapable):
         elif not hasattr(obj, self.name):
             setattr(obj, self.name, copy_if_supported(self.default))
 
-    # Conditional implementations (added only if sizer is a Sizer/ApproxSizer)
-    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
-        return self.io.sizeof(obj, context)
-
-    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.io.min_max_sizeof(context)
-
 class FieldListIO(MutatingReader, Writer, ReprCapable):
+    class MySizer(Sizer):
+        def sizeof(self, obj, context=EMPTY_CONTEXT):
+            return sum([ io.sizeof(obj, context) for io in self.ios ])
+    class MyApproxSizer(ApproxSizer):
+        def min_max_sizeof(self, context=EMPTY_CONTEXT):
+            if self.min_max_size is None:
+                self.min_max_size = MinMax(sum([ io.min_max_sizeof(context).min for io in self.ios ]),
+                                           sum([ io.min_max_sizeof(context).max for io in self.ios ]))
+            return self.min_max_size
+    
     def __init__(self, ios):
         super(FieldListIO, self).__init__()
         self.ios = ios
         self.min_max_size = None
-        install_mixin_if(self, Sizer, all([ is_sizer(io) for io in self.ios ]))
-        install_mixin_if(self, ApproxSizer, all([ is_approx_sizer(io) for io in self.ios ]))
+        install_mixin_if(self, FieldListIO.MySizer, all([ is_sizer(io) for io in self.ios ]))
+        install_mixin_if(self, FieldListIO.MyApproxSizer, all([ is_approx_sizer(io) for io in self.ios ]))
 
     def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         for io in self.ios:
@@ -79,15 +90,6 @@ class FieldListIO(MutatingReader, Writer, ReprCapable):
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return "(" + ", ".join([ (io.to_repr(obj, context) if is_repr_capable(io) else repr(obj)) for io in self.ios ]) + ")"
-
-    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
-        return sum([ io.sizeof(obj, context) for io in self.ios ])
-
-    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        if self.min_max_size is None:
-            self.min_max_size = MinMax(sum([ io.min_max_sizeof(context).min for io in self.ios ]),
-                                       sum([ io.min_max_sizeof(context).max for io in self.ios ]))
-        return self.min_max_size
 
 class StructType(type):
     def __new__(cls, name, bases, attrs):

@@ -1,3 +1,5 @@
+from infi.pyutils.mixin import install_mixin
+
 from . import FieldListIO
 from ..base import AllocatingReader, MutatingReader, Writer, ReprCapable, FixedSizer, MinMax, is_approx_sizer
 from ..base import Sizer, FixedSizer, EMPTY_CONTEXT
@@ -32,7 +34,7 @@ class BitPaddingIO(MutatingReader, Writer, ReprCapable, FixedSizer):
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return "<%d bits padding>" % (self.size,)
 
-class BitFieldListIO(FixedSizer, FieldListIO):
+class BitFieldListIO(FieldListIO):
     def __init__(self, ios):
         super(BitFieldListIO, self).__init__(ios)
         if not all([ is_approx_sizer(io) and io.is_fixed_size() for io in self.ios ]):
@@ -41,6 +43,7 @@ class BitFieldListIO(FixedSizer, FieldListIO):
         if (self.size % 8) != 0:
             raise BitFieldNotInByteBoundry()
         self.size /= 8
+        install_mixin(self, FixedSizer)
         
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         bit_stream = BitStringIO(self.size)

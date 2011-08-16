@@ -17,6 +17,8 @@ def test_simple_bits():
     obj = MyStruct.create_from_string(chr(6 + (5 << 3)))
     assert obj.foo == 6
     assert obj.bar == 5
+    assert obj.sizeof() == 1
+    assert MyStruct.sizeof(obj) == 1
 
 def test_cross_byte_bits():
     class MyStruct(Struct):
@@ -34,3 +36,5 @@ def test_cross_byte_bits():
     assert obj.foo == 0x1ae
     assert obj.bar == 0x7f
     assert obj.car == 0x1a
+    assert obj.sizeof() == 3
+    assert MyStruct.sizeof(obj) == 3

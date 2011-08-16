@@ -1,16 +1,24 @@
 from cStringIO import StringIO
+from infi.pyutils.mixin import install_mixin_if
 
 from . import FieldAdapter, FieldListIO
 from ..base import FixedSizer, Sizer, ApproxSizer, is_sizer, is_approx_sizer, EMPTY_CONTEXT
-from ..mixin import install_mixin_if
 
 class LazyFieldDecorator(FieldAdapter):
+    class MySizer(Sizer):
+        def sizeof(self, obj, context=EMPTY_CONTEXT):
+            return self.field.min_max_sizeof(obj, context)
+        
+    class MyApproxSizer(ApproxSizer):
+        def min_max_sizeof(self, context=EMPTY_CONTEXT):
+            return self.field.min_max_sizeof(context)
+
     def __init__(self, container, field):
         super(LazyFieldDecorator, self).__init__(field.name, field.default, field.io)
         self.container = container
         self.field = field
-        install_mixin_if(self, Sizer, is_sizer(self.field))
-        install_mixin_if(self, ApproxSizer, is_approx_sizer(self.field))
+        install_mixin_if(self, LazyFieldDecorator.MySizer, is_sizer(self.field))
+        install_mixin_if(self, LazyFieldDecorator.MyApproxSizer, is_approx_sizer(self.field))
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         self.field.write_to_stream(obj, stream, context)
@@ -30,12 +38,6 @@ class LazyFieldDecorator(FieldAdapter):
         if self.container.is_instantiated(obj):
             return self.field.to_repr(obj, context)
         return "<lazy>"
-    
-    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.field.min_max_sizeof(context)
-
-    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
-        return self.field.min_max_sizeof(obj, context)
 
 class LazyFieldListIO(FixedSizer, FieldListIO):
     def __init__(self, ios):

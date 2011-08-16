@@ -1,10 +1,19 @@
+from infi.pyutils.mixin import install_mixin, install_mixin_if
+
 from ..base import AllocatingReader, Writer, ReprCapable, Sizer, ApproxSizer, is_sizer, is_approx_sizer, is_repr_capable
 from ..base import MinMax, EMPTY_CONTEXT
 from ..errors import InstructError
-from ..mixin import install_mixin, install_mixin_if
 from ..utils.read_ahead_stream import ReadAheadStream
 
 class StructSelectorIO(AllocatingReader, Writer, ReprCapable):
+    class MySizer(Sizer):
+        def sizeof(self, obj, context=EMPTY_CONTEXT):
+            return obj.sizeof(context)
+
+    class MyApproxSizer(ApproxSizer):
+        def min_max_sizeof(self, context=EMPTY_CONTEXT):
+            return self.min_max_size
+
     def __init__(self, key_io, mapping, default=None):
         super(StructSelectorIO, self).__init__()
         self.key_io = key_io
@@ -15,10 +24,10 @@ class StructSelectorIO(AllocatingReader, Writer, ReprCapable):
             self.mapping[key] = struct._io_
 
         structs = mapping.values() + ([ self.default._io_ ] if self.default is not None else [])
-        install_mixin_if(self, Sizer, all([ is_sizer(io) for io in structs ]))
+        install_mixin_if(self, StructSelectorIO.MySizer, all([ is_sizer(io) for io in structs ]))
 
         if all([ is_approx_sizer(io) for io in structs ]):
-            install_mixin(self, ApproxSizer)
+            install_mixin(self, StructSelectorIO.MyApproxSizer)
             min_size = min([ io.min_max_sizeof().min for io in structs ])
             max_size = max([ io.min_max_sizeof().max for io in structs ])
             self.min_max_size = MinMax(min_size, max_size)
@@ -44,18 +53,16 @@ class StructSelectorIO(AllocatingReader, Writer, ReprCapable):
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return obj.to_repr(context)
     
-    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
-        return obj.sizeof(context)
-
-    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.min_max_size
-
 class FuncStructSelectorIO(AllocatingReader, Writer, Sizer, ReprCapable):
+    class MyApproxSizer(ApproxSizer):
+        def min_max_sizeof(self, context=EMPTY_CONTEXT):
+            return self.min_max_size
+        
     def __init__(self, func, min_max_size=None):
         super(FuncStructSelectorIO, self).__init__()
         self.func = func
         self.min_max_size = MinMax(min_max_size)
-        install_mixin_if(self, ApproxSizer, self.min_max_size is not None)
+        install_mixin_if(self, FuncStructSelectorIO.MyApproxSizer, self.min_max_size is not None)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         obj.write_to_stream(stream, context)
@@ -80,6 +87,3 @@ class FuncStructSelectorIO(AllocatingReader, Writer, Sizer, ReprCapable):
     
     def sizeof(self, obj, context=EMPTY_CONTEXT):
         return obj.sizeof(context)
-
-    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.min_max_size

@@ -1,6 +1,7 @@
+from infi.pyutils.mixin import install_mixin_if
+
 from .base import Sizer, ApproxSizer, FixedSizer, AllocatingReader, Writer, ReprCapable, EMPTY_CONTEXT
 from .base import UNBOUNDED_MIN_MAX, is_sizer, is_approx_sizer
-from .mixin import install_mixin_if
 from .errors import InstructError, InvalidValueError
 
 PADDING_DIRECTION_NONE  = 0
@@ -51,13 +52,21 @@ class PaddedStringIO(FixedSizer, AllocatingReader, Writer, ReprCapable):
         return repr(obj)
 
 class VarSizeStringIO(AllocatingReader, Writer, ReprCapable):
+    class MySizer(Sizer):
+        def sizeof(self, obj, context=EMPTY_CONTEXT):
+            return self.size_io.sizeof(obj) + len(obj)
+
+    class MyApproxSizer(ApproxSizer):
+        def min_max_sizeof(self, context=EMPTY_CONTEXT):
+            return self.size_io.min_max_sizeof() + UNBOUNDED_MIN_MAX
+    
     def __init__(self, size_io, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
         super(VarSizeStringIO, self).__init__()
         self.size_io = size_io
         self.padding = padding
         self.padding_direction = padding_direction
-        install_mixin_if(self, Sizer, is_sizer(self.size_io))
-        install_mixin_if(self, ApproxSizer, is_approx_sizer(self.size_io))
+        install_mixin_if(self, VarSizeStringIO.MySizer, is_sizer(self.size_io))
+        install_mixin_if(self, VarSizeStringIO.MyApproxSizer, is_approx_sizer(self.size_io))
 
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         buffer_len = self.size_io.create_from_stream(stream, context)
@@ -73,13 +82,6 @@ class VarSizeStringIO(AllocatingReader, Writer, ReprCapable):
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return repr(obj)
-
-    # Conditional implementations (added only if sizer is a Sizer/ApproxSizer)
-    def _Sizer_sizeof(self, obj, context=EMPTY_CONTEXT):
-        return self.size_io.sizeof(obj) + len(obj)
-
-    def _ApproxSizer_min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.size_io.min_max_sizeof() + UNBOUNDED_MIN_MAX
 
 class FixedSizeBufferIO(PaddedStringIO):
     def __init__(self, size):

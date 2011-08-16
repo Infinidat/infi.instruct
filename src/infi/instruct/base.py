@@ -113,7 +113,7 @@ class Sizer(object):
 
 class ApproxSizer(object):
     def min_max_sizeof(self, context=EMPTY_CONTEXT):
-        raise NotImplementedError()
+        raise NotImplementedError("not implemented for class %s (mro=%s)" % (self.__class__, self.__class__.__mro__))
 
     def is_fixed_size(self, context=EMPTY_CONTEXT):
         min_max = self.min_max_sizeof(context)

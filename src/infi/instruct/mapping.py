@@ -3,7 +3,7 @@ from .base import FixedSizer, Marshal, EMPTY_CONTEXT
 class FixedSizeMappingMarshal(FixedSizer, Marshal):
     def __init__(self, value_map, value_marshal):
         super(FixedSizeMappingMarshal, self).__init__()
-        assert isinstance(value_marshal, ApproxSizer) and value_marshal.is_fixed_size()
+        assert value_marshal.is_fixed_size()
         self.value_map = value_map
         self.value_marshal = value_marshal
         self.reverse_value_map = dict()

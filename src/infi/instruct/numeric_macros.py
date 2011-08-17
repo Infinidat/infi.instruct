@@ -17,11 +17,11 @@ class MarshalWithField(Marshal):
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         return self.marshal.write_to_stream(obj, stream, context)
 
-    def sizeof(self, obj, context=EMPTY_CONTEXT):
-        return self.marshal.sizeof(obj, context)
+    def sizeof(self, obj):
+        return self.marshal.sizeof(obj)
 
-    def min_max_sizeof(self, context=EMPTY_CONTEXT):
-        return self.marshal.min_max_sizeof(context)
+    def min_max_sizeof(self):
+        return self.marshal.min_max_sizeof()
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return self.marshal.to_repr(obj, context)

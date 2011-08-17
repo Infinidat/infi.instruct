@@ -77,7 +77,7 @@ class FuncStructSelectorMarshal(Marshal):
         return result
     
     def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return obj.to_repr(context)
+        return type(obj).to_repr(obj, context)
     
     def sizeof(self, obj):
         return type(obj).sizeof(obj)

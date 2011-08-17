@@ -4,6 +4,7 @@ from .struct.const import ConstField as OrigConstField
 from .struct.bit import BitFieldListContainer, BitMarshal, BitPaddingMarshal
 from .struct.lazy import LazyFieldListContainer
 from .struct.selector import StructSelectorMarshal, FuncStructSelectorMarshal
+from .struct.pointer import ReadPointer
 
 from .base import Marshal, UNBOUNDED_MIN_MAX
 from .errors import InstructError

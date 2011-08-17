@@ -15,7 +15,7 @@ class BitMarshal(FixedSizer, Marshal):
         stream.write(obj, self.size)
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return repr(obj)
+        return context.get('int_repr_format', '%d') % obj
 
 class BitPaddingMarshal(BitMarshal):
     def __init__(self, size):

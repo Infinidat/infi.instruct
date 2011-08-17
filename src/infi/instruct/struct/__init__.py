@@ -1,7 +1,7 @@
 import types
 from cStringIO import StringIO
 
-from ..base import MarshalBase, EMPTY_CONTEXT, MinMax, ZERO_MIN_MAX
+from ..base import MarshalBase, WritableContext, EMPTY_CONTEXT, MinMax, ZERO_MIN_MAX
 from ..errors import InstructError, StructNotWellDefinedError
 
 def copy_if_supported(obj):
@@ -161,13 +161,13 @@ class Struct(object):
         
     @classmethod
     def write_to_stream(cls, obj, stream, context=EMPTY_CONTEXT):
-        context = context.writable_copy(dict(struct=obj))
+        context = cls.get_updated_context(obj, context)
         type(obj)._container_.write_fields(obj, stream, context)
 
     @classmethod
     def create_from_stream(cls, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         obj = cls(*args, **kwargs)
-        context = context.writable_copy(dict(struct=obj))
+        context = cls.get_updated_context(obj, context)
         cls._container_.read_fields(obj, stream, context, *args, **kwargs)
         return obj
 
@@ -197,8 +197,18 @@ class Struct(object):
     @classmethod
     def to_repr(cls, obj, context=EMPTY_CONTEXT):
         cls = type(obj)
-        context = context.writable_copy(dict(struct=obj))
+        context = cls.get_updated_context(obj, context)
         return("%s(%s)" % (cls.__name__, cls._container_.to_repr(obj, context)))
+
+    @classmethod
+    def get_updated_context(cls, obj, context):
+        cls = type(obj)
+        if hasattr(cls, '_context_'):
+            new_context = WritableContext(cls._context_.copy())
+        else:
+            new_context = WritableContext(dict(struct=obj))
+        new_context.update(context.get_dict())
+        return new_context
 
     def __str__(self):
         return type(self).write_to_string(self)

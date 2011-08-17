@@ -1,4 +1,5 @@
 import sys
+import types
 import collections
 from cStringIO import StringIO
 
@@ -14,10 +15,23 @@ class ReadOnlyContext(object):
     def get(self, key, default):
         return self.d.get(key, default)
 
+    def get_dict(self):
+        return self.d.copy()
+
     def writable_copy(self, dict={}):
         c = self.d.copy()
         c.update(dict)
         return WritableContext(c)
+
+    def __repr__(self):
+        return "ReadOnlyContext(%s)" % self._shallow_repr()
+
+    def _shallow_repr(self):
+        def _is_primitive(obj):
+            return isinstance(obj, (types.IntType, types.BooleanType, types.BufferType, types.FloatType, types.ListType,
+                                    types.TupleType) + types.StringTypes)
+        return ", ".join([ "%s=%s" % (key, repr(val) if _is_primitive(val) else "%s<%s>" % (type(val), id(val)))
+                           for key, val in self.d.items() ])
 
 class WritableContext(ReadOnlyContext):
     def __init__(self, d=None):
@@ -26,8 +40,14 @@ class WritableContext(ReadOnlyContext):
     def put(self, key, value):
         self.d[key] = value
 
+    def update(self, dict):
+        self.d.update(dict)
+
     def remove(self, key):
         del self.d[key]
+
+    def __repr__(self):
+        return "WritableContext(%s)" % self._shallow_repr()
 
 EMPTY_CONTEXT = ReadOnlyContext()
 
@@ -126,7 +146,7 @@ class FixedSizer(object):
     def min_max_sizeof(self):
         return MinMax(self.size, self.size)
 
-class ConstMarshal(FixedSizer, Marshal):
+class ConstReader(FixedSizer, Marshal):
     """
     A marshal that doesn't write to a stream but returns a constant value whenever create_from_stream is called.
     """
@@ -136,6 +156,20 @@ class ConstMarshal(FixedSizer, Marshal):
 
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         return self.value
+
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        pass
+
+class CallableReader(FixedSizer, Marshal):
+    """
+    A marshal that doesn't write to a stream but returns a value from a callable whenever create_from_stream is called.
+    """
+    def __init__(self, func):
+        self.func = func
+        self.size = 0
+
+    def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        return self.func(context)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         pass

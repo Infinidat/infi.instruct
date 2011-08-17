@@ -1,4 +1,4 @@
-from .base import Marshal, ConstMarshal, FixedSizer, EMPTY_CONTEXT, MinMax
+from .base import Marshal, ConstReader, FixedSizer, EMPTY_CONTEXT, MinMax
 from .errors import InstructError, InvalidValueError
 
 PADDING_DIRECTION_NONE  = 0
@@ -63,12 +63,11 @@ class VarSizeStringMarshal(Marshal):
 
 class PaddedStringMarshal(FixedSizer, VarSizeStringMarshal):
     def __init__(self, size, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
-        super(PaddedStringMarshal, self).__init__(ConstMarshal(size), padding, padding_direction)
+        super(PaddedStringMarshal, self).__init__(ConstReader(size), padding, padding_direction)
         self.size = size
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         stripped_obj = _strip(obj, self.padding_direction, self.padding)
-        self.size_marshal.write_to_stream(len(stripped_obj), stream, context)
         stream.write(stripped_obj)
         if len(stripped_obj) < self.size:
             stream.write(self.padding[0] * (self.size - len(stripped_obj)))

@@ -1,4 +1,4 @@
-from .base import Marshal, ConstMarshal, EMPTY_CONTEXT, MinMax, FixedSizer
+from .base import Marshal, ConstReader, EMPTY_CONTEXT, MinMax, FixedSizer
 
 class ArrayBase(object):
     def to_repr(self, obj, context=EMPTY_CONTEXT):
@@ -37,7 +37,7 @@ class VarSizeArrayMarshal(ArrayBase, Marshal):
 
 class FixedSizeArrayMarshal(VarSizeArrayMarshal):
     def __init__(self, size, element_marshal):
-        super(FixedSizeArrayMarshal, self).__init__(ConstMarshal(size), element_marshal)
+        super(FixedSizeArrayMarshal, self).__init__(ConstReader(size), element_marshal)
         self.size = size
     
     def min_max_sizeof(self):

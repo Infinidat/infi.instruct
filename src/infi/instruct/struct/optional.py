@@ -1,31 +1,25 @@
-from infi.pyutils.mixin import install_mixin_if
+from ..base import MinMax, EMPTY_CONTEXT
+from . import Field
 
-from ..base import MinMax, Sizer, ApproxSizer, is_sizer, is_approx_sizer, EMPTY_CONTEXT
-from . import FieldAdapter
-
-class OptionalFieldAdapter(FieldAdapter):
-    class MySizer(Sizer):
-        def sizeof(self, obj, context=EMPTY_CONTEXT):
-            value = getattr(obj, self.name, self.default)
-            if value is None:
-                return 0
-            return self.io.sizeof(value, context)
-
-    class MyApproxSizer(ApproxSizer):
-        def min_max_sizeof(self, context=EMPTY_CONTEXT):
-            return MinMax(0, self.io.min_max_sizeof(context).max)
-
-    def __init__(self, name, default, io, predicate):
-        super(OptionalFieldAdapter, self).__init__(name, default, io)
+class OptionalField(Field):
+    def __init__(self, name, marshal, predicate, default=None):
+        super(OptionalField, self).__init__(name, marshal, default)
         self.predicate = predicate
-        install_mixin_if(self, OptionalFieldAdapter.MySizer, is_sizer(io))
-        install_mixin_if(self, OptionalFieldAdapter.MyApproxSizer, is_approx_sizer(io))
 
-    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        value = getattr(obj, self.name, self.default)
+    def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
+        value = self.get_value(obj)
         if value is not None:
-            super(OptionalFieldAdapter, self).write_to_stream(obj, stream, context)
+            self.marshal.write_to_stream(value, stream, context)
 
-    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+    def read_fields(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         if self.predicate(obj, stream, context):
-            super(OptionalFieldAdapter, self).read_into_from_stream(obj, stream, context, *args, **kwargs)
+            super(OptionalField, self).read_fields(obj, stream, context, *args, **kwargs)
+
+    def sizeof(self, obj):
+        value = self.get_value(obj)
+        if value is None:
+            return 0
+        return self.marshal.sizeof(value)
+        
+    def min_max_sizeof(self):
+        return MinMax(0, self.marshal.min_max_sizeof().max)

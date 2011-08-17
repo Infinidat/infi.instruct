@@ -1,7 +1,4 @@
-from infi.pyutils.mixin import install_mixin_if
-
-from .base import Sizer, ApproxSizer, FixedSizer, AllocatingReader, Writer, ReprCapable, EMPTY_CONTEXT
-from .base import UNBOUNDED_MIN_MAX, is_sizer, is_approx_sizer
+from .base import Marshal, ConstMarshal, FixedSizer, EMPTY_CONTEXT, MinMax
 from .errors import InstructError, InvalidValueError
 
 PADDING_DIRECTION_NONE  = 0
@@ -35,41 +32,15 @@ def _pad(obj, size, dir, padding):
         raise InvalidValueError("no padding specified but item length %d is smaller than required length %d (item=%s)" %
                                 (len(obj), size, obj))
 
-class PaddedStringIO(FixedSizer, AllocatingReader, Writer, ReprCapable):
-    def __init__(self, size, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
-        super(PaddedStringIO, self).__init__()
-        self.size = size
+class VarSizeStringMarshal(Marshal):
+    def __init__(self, size_marshal, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
+        super(VarSizeStringMarshal, self).__init__()
+        self.size_marshal = size_marshal
         self.padding = padding
         self.padding_direction = padding_direction
-    
-    def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
-        return _strip(stream.read(self.size), self.padding_direction, self.padding)
-
-    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        stream.write(_pad(obj, self.size, self.padding_direction, self.padding))
-
-    def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return repr(obj)
-
-class VarSizeStringIO(AllocatingReader, Writer, ReprCapable):
-    class MySizer(Sizer):
-        def sizeof(self, obj, context=EMPTY_CONTEXT):
-            return self.size_io.sizeof(obj) + len(obj)
-
-    class MyApproxSizer(ApproxSizer):
-        def min_max_sizeof(self, context=EMPTY_CONTEXT):
-            return self.size_io.min_max_sizeof() + UNBOUNDED_MIN_MAX
-    
-    def __init__(self, size_io, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
-        super(VarSizeStringIO, self).__init__()
-        self.size_io = size_io
-        self.padding = padding
-        self.padding_direction = padding_direction
-        install_mixin_if(self, VarSizeStringIO.MySizer, is_sizer(self.size_io))
-        install_mixin_if(self, VarSizeStringIO.MyApproxSizer, is_approx_sizer(self.size_io))
 
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
-        buffer_len = self.size_io.create_from_stream(stream, context)
+        buffer_len = self.size_marshal.create_from_stream(stream, context)
         obj = stream.read(buffer_len)
         if len(obj) < buffer_len:
             raise InstructError("Expected to read %d bytes from stream but read only %d" % (buffer_len, len(obj)))
@@ -77,16 +48,35 @@ class VarSizeStringIO(AllocatingReader, Writer, ReprCapable):
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         stripped_obj = _strip(obj, self.padding_direction, self.padding)
-        self.size_io.write_to_stream(len(stripped_obj), stream, context)
+        self.size_marshal.write_to_stream(len(stripped_obj), stream, context)
         stream.write(stripped_obj)
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return repr(obj)
 
-class FixedSizeBufferIO(PaddedStringIO):
-    def __init__(self, size):
-        super(FixedSizeBufferIO, self).__init__(size, padding='', padding_direction=PADDING_DIRECTION_NONE)
+    def sizeof(self, obj):
+        return self.size_marshal.sizeof(obj) + len(_strip(obj, self.padding_direction, self.padding))
 
-class VarSizeBufferIO(VarSizeStringIO):
-    def __init__(self, size_io):
-        super(VarSizeBufferIO, self).__init__(size_io, padding='', padding_direction=PADDING_DIRECTION_NONE)
+    def min_max_sizeof(self):
+        size_min_max = self.size_marshal.min_max_sizeof()
+        return MinMax(size_min_max.min, size_min_max.max + (1 << (size_min_max.max * 8)) - 1)
+
+class PaddedStringMarshal(FixedSizer, VarSizeStringMarshal):
+    def __init__(self, size, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
+        super(PaddedStringMarshal, self).__init__(ConstMarshal(size), padding, padding_direction)
+        self.size = size
+
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        stripped_obj = _strip(obj, self.padding_direction, self.padding)
+        self.size_marshal.write_to_stream(len(stripped_obj), stream, context)
+        stream.write(stripped_obj)
+        if len(stripped_obj) < self.size:
+            stream.write(self.padding[0] * (self.size - len(stripped_obj)))
+
+class VarSizeBufferMarshal(VarSizeStringMarshal):
+    def __init__(self, size_marshal):
+        super(VarSizeBufferMarshal, self).__init__(size_marshal, padding='', padding_direction=PADDING_DIRECTION_NONE)
+
+class FixedSizeBufferMarshal(PaddedStringMarshal):
+    def __init__(self, size):
+        super(FixedSizeBufferMarshal, self).__init__(size, padding='', padding_direction=PADDING_DIRECTION_NONE)

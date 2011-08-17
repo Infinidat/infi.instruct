@@ -1,77 +1,71 @@
-from infi.pyutils.mixin import install_mixin_if
+from .base import Marshal, ConstMarshal, EMPTY_CONTEXT, MinMax, FixedSizer
 
-from .base import AllocatingReader, Writer, ReprCapable, EMPTY_CONTEXT
-from .base import MinMax, Sizer, ApproxSizer, is_sizer, is_approx_sizer
+class ArrayBase(object):
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        return "[ " + ", ".join([ self.element_marshal.to_repr(element, context) for element in obj ]) + " ]"
 
-class FixedSizeArrayIO(AllocatingReader, Writer, ReprCapable):
-    class MySizer(Sizer):
-        def sizeof(self, obj, context=EMPTY_CONTEXT):
-            return sum([ self.element_io.sizeof(element, context) for element in obj ])
+    def _approx_max_elements_by_size_bits(self):
+        size_min_max = self.size_marshal.min_max_sizeof()
+        return (1 << (size_min_max.max * 8)) - 1
 
-    class MyApproxSizer(ApproxSizer):
-        def min_max_sizeof(self, context=EMPTY_CONTEXT):
-            min_max = self.element_io.min_max_sizeof(context)
-            return MinMax(min_max.min * self.size, min_max.max * self.size)
-        
-    def __init__(self, size, element_io):
-        super(FixedSizeArrayIO, self).__init__()
-        self.size = size
-        self.element_io = element_io
-        install_mixin_if(self, FixedSizeArrayIO.MySizer, is_sizer(self.element_io))
-        install_mixin_if(self, FixedSizeArrayIO.MyApproxSizer, is_approx_sizer(self.element_io))
+    def min_max_sizeof(self):
+        size_min_max = self.size_marshal.min_max_sizeof()
+        element_min_max = self.element_marshal.min_max_sizeof()
+        return MinMax(size_min_max.min,
+                      size_min_max.max + self._approx_max_elements_by_size_bits() * element_min_max.max)
+
+class VarSizeArrayMarshal(ArrayBase, Marshal):
+    def __init__(self, size_marshal, element_marshal):
+        super(VarSizeArrayMarshal, self).__init__()
+        self.size_marshal = size_marshal
+        self.element_marshal = element_marshal
     
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        size = self.size_marshal.create_from_stream(stream, context, *args, **kwargs)
         obj = []
-        for i in xrange(self.size):
-            obj.append(self.element_io.create_from_stream(stream, context, *args, **kwargs))
+        for i in xrange(size):
+            obj.append(self.element_marshal.create_from_stream(stream, context, *args, **kwargs))
         return obj
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        assert len(obj) == self.size
+        self.size_marshal.write_to_stream(len(obj), stream, context)
         for element in obj:
-            self.element_io.write_to_stream(element, stream, context)
+            self.element_marshal.write_to_stream(element, stream, context)
 
-    def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return "[ " + ", ".join([ self.element_io.to_repr(element, context) for element in obj ]) + " ]"
+    def sizeof(self, obj):
+        return self.size_marshal.sizeof(len(obj)) + sum([ self.element_marshal.sizeof(element) for element in obj ])
 
-class SumSizeArrayIO(AllocatingReader, Writer, ReprCapable):
-    class MySizer(Sizer):
-        def sizeof(self, obj, context=EMPTY_CONTEXT):
-            sum_size = sum([ self.element_io.sizeof(element, context) for element in obj ])
-            return sum([ self.element_io.sizeof(element, context) for element in obj ], self.size_io.sizeof(sum_size))
+class FixedSizeArrayMarshal(VarSizeArrayMarshal):
+    def __init__(self, size, element_marshal):
+        super(FixedSizeArrayMarshal, self).__init__(ConstMarshal(size), element_marshal)
+        self.size = size
+    
+    def min_max_sizeof(self):
+        element_min_max = self.element_marshal.min_max_sizeof()
+        return MinMax(element_min_max.min * self.size, element_min_max.max * self.size)
 
-    class MyApproxSizer(ApproxSizer):
-        def min_max_sizeof(self, context=EMPTY_CONTEXT):
-            size_min_max = self.size_io.min_max_sizeof(context)
-            # Theoretically, if we know the upper limit of the size field (e.g. max elements), we can multiply this by
-            # the max element size and get a number that's less than maxint. But for our purposes it's enough to do
-            # this:
-            return MinMax(size_min_max.min)
-        
-    def __init__(self, size_io, element_io):
-        super(SumSizeArrayIO, self).__init__()
-        self.size_io = size_io
-        self.element_io = element_io
-
-        assert is_sizer(element_io)
-        install_mixin_if(self, SumSizeArrayIO.MySizer, is_sizer(self.element_io) and is_sizer(self.size_io))
-        install_mixin_if(self, SumSizeArrayIO.MyApproxSizer, is_approx_sizer(self.size_io))
+class SumSizeArrayMarshal(ArrayBase, Marshal):
+    def __init__(self, size_marshal, element_marshal):
+        super(SumSizeArrayMarshal, self).__init__()
+        self.size_marshal = size_marshal
+        self.element_marshal = element_marshal
     
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         obj = []
-        total_bytes = self.size_io.create_from_stream(stream, context)
+        total_bytes = self.size_marshal.create_from_stream(stream, context)
         while total_bytes > 0:
-            element = self.element_io.create_from_stream(stream, context, *args, **kwargs)
+            element = self.element_marshal.create_from_stream(stream, context, *args, **kwargs)
             obj.append(element)
-            total_bytes -= self.element_io.sizeof(element, context)
+            total_bytes -= self.element_marshal.sizeof(element)
         assert total_bytes == 0
         return obj
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        sum_size = sum([ self.element_io.sizeof(element, context) for element in obj ])
-        self.size_io.write_to_stream(sum_size, stream, context)
+        sum_size = sum([ self.element_marshal.sizeof(element) for element in obj ])
+        self.size_marshal.write_to_stream(sum_size, stream, context)
         for element in obj:
-            self.element_io.write_to_stream(element, stream, context)
+            self.element_marshal.write_to_stream(element, stream, context)
 
-    def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return "[ " + ", ".join([ self.element_io.to_repr(element, context) for element in obj ]) + " ]"
+    def sizeof(self, obj):
+        sum_size = sum([ self.element_marshal.sizeof(element) for element in obj ])
+        return self.size_marshal.sizeof(sum_size) + sum_size

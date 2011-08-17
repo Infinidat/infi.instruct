@@ -68,11 +68,40 @@ class MinMax(collections.namedtuple('MinMax', 'min max')):
         return str(self)
 
 UNBOUNDED_MIN_MAX = MinMax(0, sys.maxint)
+ZERO_MIN_MAX = MinMax(0, 0)
 
-class AllocatingReader(object):
+class MarshalBase(object):
+    def sizeof(self, obj):
+        raise NotImplementedError()
+    
+    # The following methods _should_ be implemented by the user:
+    #
+    def min_max_sizeof(self):
+        return UNBOUNDED_MIN_MAX
+
+    def to_repr(self, obj, context=EMPTY_CONTEXT):
+        return repr(obj)
+
+    # The following methods are convenience methods and generally don't need to get overridden:
+    #
+    def is_fixed_size(self):
+        min_max = self.min_max_sizeof()
+        return min_max.min == min_max.max
+
+class Marshal(MarshalBase):
+    # The following methods _must_ be implemented by the user.
+    #
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         raise NotImplementedError()
 
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        raise NotImplementedError()
+
+    def sizeof(self, obj):
+        raise NotImplementedError()
+
+    # The following methods are convenience methods and generally don't need to get overridden:
+    #
     def create_from_string(self, string, context=EMPTY_CONTEXT, *args, **kwargs):
         """
         Deserializes a new instance from a string.
@@ -83,23 +112,6 @@ class AllocatingReader(object):
         io.close()
         return instance
 
-class MutatingReader(object):
-    def read_into_from_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        raise NotImplementedError()
-
-    def read_into_from_string(self, obj, string, context=EMPTY_CONTEXT):
-        """
-        Reads attributes into obj from a string.
-        This is a convenience method that creates a StringIO object and calls read_into_from_stream().
-        """
-        io = StringIO(string)
-        instance = self.read_into_from_stream(obj, io, context)
-        io.close()
-
-class Writer(object):
-    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        raise NotImplementedError()
-
     def write_to_string(self, obj, context=EMPTY_CONTEXT):
         io = StringIO()
         instance = self.write_to_stream(obj, io, context)
@@ -107,41 +119,23 @@ class Writer(object):
         io.close()
         return result
 
-class Sizer(object):
-    def sizeof(self, obj, context=EMPTY_CONTEXT):
-        raise NotImplementedError()
-
-class ApproxSizer(object):
-    def min_max_sizeof(self, context=EMPTY_CONTEXT):
-        raise NotImplementedError("not implemented for class %s (mro=%s)" % (self.__class__, self.__class__.__mro__))
-
-    def is_fixed_size(self, context=EMPTY_CONTEXT):
-        min_max = self.min_max_sizeof(context)
-        return min_max.min == min_max.max
-
-class ReprCapable(object):
-    def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return repr(obj)
-
-    @classmethod
-    def to_repr(cls, io, obj, context=EMPTY_CONTEXT):
-        if isinstance(io, ReprCapable):
-            return io.to_repr(obj, context)
-        else:
-            return repr(obj)
-
-class FixedSizer(ApproxSizer):
-    def sizeof(self, obj, context=EMPTY_CONTEXT):
+class FixedSizer(object):
+    def sizeof(self, obj):
         return self.size
 
-    def min_max_sizeof(self, context=EMPTY_CONTEXT):
+    def min_max_sizeof(self):
         return MinMax(self.size, self.size)
 
-def is_repr_capable(obj):
-    return hasattr(obj, 'to_repr')
+class ConstMarshal(FixedSizer, Marshal):
+    """
+    A marshal that doesn't write to a stream but returns a constant value whenever create_from_stream is called.
+    """
+    def __init__(self, value):
+        self.value = value
+        self.size = 0
 
-def is_sizer(obj):
-    return hasattr(obj, 'sizeof')
+    def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
+        return self.value
 
-def is_approx_sizer(obj):
-    return hasattr(obj, 'min_max_sizeof')
+    def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
+        pass

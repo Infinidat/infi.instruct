@@ -43,7 +43,7 @@ def ConstField(name, value, marshal=None):
 def BitFields(*args):
     if any([ isinstance(field.marshal, PositionalBitMarshal) for field in args ]):
         assert all([ isinstance(field.marshal, PositionalBitMarshal) for field in args ])
-        return PositionalBitFieldListContainer(args)
+        return PositionalBitFieldListContainer(None, args)
     else:
         return BitFieldListContainer(args)
 

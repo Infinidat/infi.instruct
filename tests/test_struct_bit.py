@@ -53,10 +53,9 @@ def test_bit_padding():
 
 def test_bit_slicing():
     class MyStruct(Struct):
-        _fields_ = BitFieldMap(32,
-                               foo=Bits[28:32, 16:24, 8:16, 0:4],
-                               bar=Bits[4:8],
-                               doo=Bits[24:28])
+        _fields_ = BitFields(BitField("foo", Bits[28:32, 16:24, 8:16, 0:4]),
+                             BitField("bar", Bits[4:8]),
+                             BitField("doo", Bits[24:28]))
     obj = MyStruct()
     obj.foo = 0xdcceef
     obj.bar = 0x9

@@ -169,7 +169,7 @@ class CallableReader(FixedSizer, Marshal):
         self.size = 0
 
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
-        return self.func(context)
+        return self.func(stream, context)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         pass

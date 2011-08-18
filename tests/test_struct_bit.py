@@ -50,3 +50,15 @@ def test_bit_padding():
     obj = MyStruct.create_from_string(serialized_obj)
     assert obj.foo == 0x0a
     assert MyStruct.sizeof(obj) == 1
+
+def test_bit_slicing():
+    class MyStruct(Struct):
+        _fields_ = BitFieldMap(32,
+                               foo=Bits[28:32, 16:24, 8:16, 0:4],
+                               bar=Bits[4:8],
+                               doo=Bits[24:28])
+    obj = MyStruct()
+    obj.foo = 0xdcceef
+    obj.bar = 0x9
+    obj.doo = 0x3
+    assert binascii.hexlify(MyStruct.write_to_string(obj)) == "9dcceef3"

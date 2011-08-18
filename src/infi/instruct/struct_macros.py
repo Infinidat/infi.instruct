@@ -1,7 +1,10 @@
+import types
+
 from .struct import Struct, Field, AnonymousField
 from .struct.optional import OptionalField
 from .struct.const import ConstField as OrigConstField
 from .struct.bit import BitFieldListContainer, BitMarshal, BitPaddingMarshal
+from .struct.bit import PositionalBitMarshal, PositionalBitFieldListContainer
 from .struct.lazy import LazyFieldListContainer
 from .struct.selector import StructSelectorMarshal, FuncStructSelectorMarshal
 from .struct.pointer import ReadPointer
@@ -38,9 +41,15 @@ def ConstField(name, value, marshal=None):
     return OrigConstField(name, marshal, value)
 
 def BitFields(*args):
-    return BitFieldListContainer(args)
+    if any([ isinstance(field.marshal, PositionalBitMarshal) for field in args ]):
+        assert all([ isinstance(field.marshal, PositionalBitMarshal) for field in args ])
+        return PositionalBitFieldListContainer(args)
+    else:
+        return BitFieldListContainer(args)
 
 def BitField(name, size, default=None):
+    if isinstance(size, (types.TupleType, types.ListType, slice)):
+        return Field(name, PositionalBitMarshal((size,) if isinstance(size, slice) else size), default)
     return Field(name, BitMarshal(size), default)
 
 def BitFlag(name, default=None):
@@ -51,6 +60,15 @@ def BitPadding(size):
 
 def BytePadding(size, char='\x00'):
     return AnonymousField(BytePaddingMarshal(size, char))
+
+class BitSlicer(object):
+    def __getitem__(self, key):
+        if isinstance(key, (types.TupleType, types.ListType)):
+            return list(key)
+        elif isinstance(key, slice):
+            return [ key ]
+
+Bits = BitSlicer()
 
 def Lazy(*args):
     return LazyFieldListContainer(args)

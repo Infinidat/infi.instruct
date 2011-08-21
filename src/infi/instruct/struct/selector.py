@@ -1,71 +1,65 @@
-from infi.pyutils.mixin import install_mixin, install_mixin_if
-
-from ..base import AllocatingReader, Writer, ReprCapable, Sizer, ApproxSizer, is_sizer, is_approx_sizer, is_repr_capable
-from ..base import MinMax, EMPTY_CONTEXT
+from ..base import Marshal, MinMax, ZERO_MIN_MAX, UNBOUNDED_MIN_MAX, EMPTY_CONTEXT
 from ..errors import InstructError
 from ..utils.read_ahead_stream import ReadAheadStream
 
-class StructSelectorIO(AllocatingReader, Writer, ReprCapable):
-    class MySizer(Sizer):
-        def sizeof(self, obj, context=EMPTY_CONTEXT):
-            return obj.sizeof(context)
+from . import Struct
 
-    class MyApproxSizer(ApproxSizer):
-        def min_max_sizeof(self, context=EMPTY_CONTEXT):
-            return self.min_max_size
-
-    def __init__(self, key_io, mapping, default=None):
-        super(StructSelectorIO, self).__init__()
-        self.key_io = key_io
+class StructSelectorMarshal(Marshal):
+    def __init__(self, key_marshal, mapping, default=None):
+        super(StructSelectorMarshal, self).__init__()
+        self.key_marshal = key_marshal
         self.mapping = {}
         self.default = default
-
+        
         for key, struct in self.mapping:
-            self.mapping[key] = struct._io_
+            if not isinstance(struct, Struct):
+                raise ValueError("mapping key %s must be a subclass of Struct" % key)
+            self.mapping[key] = struct
 
-        structs = mapping.values() + ([ self.default._io_ ] if self.default is not None else [])
-        install_mixin_if(self, StructSelectorIO.MySizer, all([ is_sizer(io) for io in structs ]))
+        structs = mapping.values() + ([ self.default ] if self.default is not None else [])
 
-        if all([ is_approx_sizer(io) for io in structs ]):
-            install_mixin(self, StructSelectorIO.MyApproxSizer)
-            min_size = min([ io.min_max_sizeof().min for io in structs ])
-            max_size = max([ io.min_max_sizeof().max for io in structs ])
-            self.min_max_size = MinMax(min_size, max_size)
+        self.min_max_size = sum([ struct.min_max_sizeof() for struct in structs ], ZERO_MIN_MAX)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        obj.write_to_stream(stream, context)
+        type(obj).write_to_stream(obj, stream, context)
         
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         rstream = ReadAheadStream(stream)
         
         rstream.set_read_ahead(True)
-        key = self.key_io.create_from_stream(rstream, context)
+        key = self.key_marshal.create_from_stream(rstream, context)
         rstream.set_read_ahead(False)
-        if key not in self.mapping and self.default is None:
-            raise InstructError("key %s is not mapped an no default" % (self.key_io.to_repr(key, context),))
-        io = self.mapping[key]
-        result = io.create_from_stream(rstream, context, *args, **kwargs)
+        if key in self.mapping:
+            marshal = self.mapping[key]
+        else:
+            if self.default is not None:
+                marshal = self.default
+            else:
+                raise InstructError("key %s is not mapped an no default" % (self.key_marshal.to_repr(key, context),))
+
+        result = marshal.create_from_stream(rstream, context, *args, **kwargs)
         if not rstream.is_read_ahead_empty():
             raise InstructError("deserialized key %s with type %s but still have bytes in read-ahead buffer" %
-                                (self.key_io.to_repr(key, context), io))
+                                (self.key_marshal.to_repr(key, context), marshal))
         return result
     
     def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return obj.to_repr(context)
+        return type(obj).to_repr(obj, context)
     
-class FuncStructSelectorIO(AllocatingReader, Writer, Sizer, ReprCapable):
-    class MyApproxSizer(ApproxSizer):
-        def min_max_sizeof(self, context=EMPTY_CONTEXT):
-            return self.min_max_size
-        
-    def __init__(self, func, min_max_size=None):
-        super(FuncStructSelectorIO, self).__init__()
+    def sizeof(self, obj):
+        return type(obj).sizeof(obj)
+
+    def min_max_sizeof(self):
+        return self.min_max_size
+
+class FuncStructSelectorMarshal(Marshal):
+    def __init__(self, func, min_max_size=UNBOUNDED_MIN_MAX):
+        super(FuncStructSelectorMarshal, self).__init__()
         self.func = func
         self.min_max_size = MinMax(min_max_size)
-        install_mixin_if(self, FuncStructSelectorIO.MyApproxSizer, self.min_max_size is not None)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
-        obj.write_to_stream(stream, context)
+        type(obj).write_to_stream(obj, stream, context)
         
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         rstream = ReadAheadStream(stream)
@@ -83,7 +77,10 @@ class FuncStructSelectorIO(AllocatingReader, Writer, Sizer, ReprCapable):
         return result
     
     def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return obj.to_repr(context)
+        return type(obj).to_repr(obj, context)
     
-    def sizeof(self, obj, context=EMPTY_CONTEXT):
-        return obj.sizeof(context)
+    def sizeof(self, obj):
+        return type(obj).sizeof(obj)
+
+    def min_max_sizeof(self):
+        return self.min_max_size

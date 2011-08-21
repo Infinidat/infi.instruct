@@ -99,8 +99,9 @@ def test_standard_inquiry_parse():
 
     data = StandardInquiryData.create_from_string(serialized_data)
 
-    assert data.t10_vendor_identification == 'ATA     '
+    assert data.t10_vendor_identification == 'ATA     ', data.t10_vendor_identification
     assert data.product_identification == 'ST9320423AS     '
     assert data.product_revision_level == '0003'
     assert data.extended is not None
     assert data.extended.version_descriptors == '\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', repr(data.extended.version_descriptors)
+    

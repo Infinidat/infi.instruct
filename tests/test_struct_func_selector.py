@@ -1,7 +1,7 @@
 from infi.instruct.errors import InstructError
 from infi.instruct.struct import Struct
 from infi.instruct.macros import StructFunc, SelectStructByFunc, UBInt8, FixedSizeArray, ConstField
-from infi.instruct.struct.selector import FuncStructSelectorIO
+from infi.instruct.struct.selector import FuncStructSelectorMarshal
 
 def test_simple():
     PolyHeaderFields = [ UBInt8("type"), UBInt8("size") ]
@@ -61,7 +61,7 @@ def test_array():
                 return PolyStruct2
             raise InstructError("unknown poly type: %d" % header.type)
 
-        _fields_ = [ FixedSizeArray("my_array", 3, FuncStructSelectorIO(StructFunc(_determine_type), (0, 255))) ]
+        _fields_ = [ FixedSizeArray("my_array", 3, FuncStructSelectorMarshal(StructFunc(_determine_type), (0, 255))) ]
 
     s = MyStruct(my_array=[ PolyStruct1(foo=1, bar=2), PolyStruct1(foo=3, bar=4), PolyStruct2(coo=5) ])
     assert str(s) == "\x01\x04\x01\x02\x01\x04\x03\x04\x02\x03\x05"

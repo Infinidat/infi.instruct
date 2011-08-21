@@ -4,12 +4,16 @@ import struct
 import types
 from infi.exceptools import chain
 
-from .base import FixedSizer, AllocatingReader, Writer, ReprCapable, EMPTY_CONTEXT
+from .base import FixedSizer, Marshal, EMPTY_CONTEXT
 from .errors import InstructError, NotEnoughDataError
 
-class NumericIO(FixedSizer, AllocatingReader, Writer, ReprCapable):
+class NumericMarshal(FixedSizer, Marshal):
+    """
+    Numeric fields template class. Using Python's ``struct`` package it serializes and deserializes numeric fields with
+    different endianity and bit size.
+    """
     def __init__(self, format_string, type):
-        super(NumericIO, self).__init__()
+        super(NumericMarshal, self).__init__()
         self.format_string = format_string
         self.type = type
         self.size = struct.calcsize(format_string)
@@ -37,62 +41,62 @@ class NumericIO(FixedSizer, AllocatingReader, Writer, ReprCapable):
         return repr(obj)
 
 """unsigned, big endian 8-bit integer"""
-UBInt8IO = NumericIO(">B", types.IntType)
+UBInt8Marshal = NumericMarshal(">B", types.IntType)
 """unsigned, big endian 16-bit integer"""
-UBInt16IO = NumericIO(">H", types.IntType)
+UBInt16Marshal = NumericMarshal(">H", types.IntType)
 """unsigned, big endian 32-bit integer"""
-UBInt32IO = NumericIO(">L", types.IntType)
+UBInt32Marshal = NumericMarshal(">L", types.IntType)
 """unsigned, big endian 64-bit integer"""
-UBInt64IO = NumericIO(">Q", types.LongType)
+UBInt64Marshal = NumericMarshal(">Q", types.LongType)
 """signed, big endian 8-bit integer"""
-SBInt8IO = NumericIO(">b", types.IntType)
+SBInt8Marshal = NumericMarshal(">b", types.IntType)
 """signed, big endian 16-bit integer"""
-SBInt16IO = NumericIO(">h", types.IntType)
+SBInt16Marshal = NumericMarshal(">h", types.IntType)
 """signed, big endian 32-bit integer"""
-SBInt32IO = NumericIO(">l", types.IntType)
+SBInt32Marshal = NumericMarshal(">l", types.IntType)
 """signed, big endian 64-bit integer"""
-SBInt64IO = NumericIO(">q", types.IntType)
+SBInt64Marshal = NumericMarshal(">q", types.IntType)
 """unsigned, little endian 8-bit integer"""
-ULInt8IO = NumericIO("<B", types.IntType)
+ULInt8Marshal = NumericMarshal("<B", types.IntType)
 """unsigned, little endian 16-bit integer"""
-ULInt16IO = NumericIO("<H", types.IntType)
+ULInt16Marshal = NumericMarshal("<H", types.IntType)
 """unsigned, little endian 32-bit integer"""
-ULInt32IO = NumericIO("<L", types.IntType)
+ULInt32Marshal = NumericMarshal("<L", types.IntType)
 """unsigned, little endian 64-bit integer"""
-ULInt64IO = NumericIO("<Q", types.LongType)
+ULInt64Marshal = NumericMarshal("<Q", types.LongType)
 """signed, little endian 8-bit integer"""
-SLInt8IO = NumericIO("<b", types.IntType)
+SLInt8Marshal = NumericMarshal("<b", types.IntType)
 """signed, little endian 16-bit integer"""
-SLInt16IO = NumericIO("<h", types.IntType)
+SLInt16Marshal = NumericMarshal("<h", types.IntType)
 """signed, little endian 32-bit integer"""
-SLInt32IO = NumericIO("<l", types.IntType)
+SLInt32Marshal = NumericMarshal("<l", types.IntType)
 """signed, little endian 64-bit integer"""
-SLInt64IO = NumericIO("<q", types.LongType)
+SLInt64Marshal = NumericMarshal("<q", types.LongType)
 """unsigned, native endianity 8-bit integer"""
-UNInt8IO = NumericIO("=B", types.IntType)
+UNInt8Marshal = NumericMarshal("=B", types.IntType)
 """unsigned, native endianity 16-bit integer"""
-UNInt16IO = NumericIO("=H", types.IntType)
+UNInt16Marshal = NumericMarshal("=H", types.IntType)
 """unsigned, native endianity 32-bit integer"""
-UNInt32IO = NumericIO("=L", types.IntType)
+UNInt32Marshal = NumericMarshal("=L", types.IntType)
 """unsigned, native endianity 64-bit integer"""
-UNInt64IO = NumericIO("=Q", types.LongType)
+UNInt64Marshal = NumericMarshal("=Q", types.LongType)
 """signed, native endianity 8-bit integer"""
-SNInt8IO = NumericIO("=b", types.IntType)
+SNInt8Marshal = NumericMarshal("=b", types.IntType)
 """signed, native endianity 16-bit integer"""
-SNInt16IO = NumericIO("=h", types.IntType)
+SNInt16Marshal = NumericMarshal("=h", types.IntType)
 """signed, native endianity 32-bit integer"""
-SNInt32IO = NumericIO("=l", types.IntType)
+SNInt32Marshal = NumericMarshal("=l", types.IntType)
 """signed, native endianity 64-bit integer"""
-SNInt64IO = NumericIO("=q", types.LongType)
+SNInt64Marshal = NumericMarshal("=q", types.LongType)
 """big endian, 32-bit IEEE floating point number"""
-BFloat32IO = NumericIO(">f", types.FloatType)
+BFloat32Marshal = NumericMarshal(">f", types.FloatType)
 """little endian, 32-bit IEEE floating point number"""
-LFloat32IO = NumericIO("<f", types.FloatType)
+LFloat32Marshal = NumericMarshal("<f", types.FloatType)
 """native endianity, 32-bit IEEE floating point number"""
-NFloat32IO = NumericIO("=f", types.FloatType)
+NFloat32Marshal = NumericMarshal("=f", types.FloatType)
 """big endian, 64-bit IEEE floating point number"""
-BFloat64IO = NumericIO(">d", types.FloatType)
+BFloat64Marshal = NumericMarshal(">d", types.FloatType)
 """little endian, 64-bit IEEE floating point number"""
-LFloat64IO = NumericIO("<d", types.FloatType)
+LFloat64Marshal = NumericMarshal("<d", types.FloatType)
 """native endianity, 64-bit IEEE floating point number"""
-NFloat64IO = NumericIO("=d", types.FloatType)
+NFloat64Marshal = NumericMarshal("=d", types.FloatType)

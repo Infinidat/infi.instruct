@@ -54,3 +54,7 @@ class BitStringIO(object):
 
         self.position += bits_to_read
         return result
+
+    def seek(self, position):
+        self.position = position
+        assert self.position >= 0 and ((self.position / 8) < len(self.value))

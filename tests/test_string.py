@@ -3,7 +3,7 @@ from infi.instruct.base import Marshal, ReadOnlyContext, EMPTY_CONTEXT, MinMax, 
 from infi.instruct.numeric import UBInt8Marshal
 from infi.instruct.string import PaddedStringMarshal, VarSizeBufferMarshal
 from infi.instruct.struct import Struct
-from infi.instruct.string_macros import VarSizeBuffer
+from infi.instruct.string_macros import VarSizeBuffer, FixedSizeString
 from infi.instruct.struct.pointer import ReadPointer
 from infi.instruct import ULInt8
 
@@ -41,3 +41,12 @@ def test_var_size_read_pointer():
 
     result = MyStruct.create_from_string("\x02hi")
     assert "hi" == result.string
+
+def test_repr_FixedSizeString():
+    class MyStruct(Struct):
+        _fields_ = [FixedSizeString("test", 5),]
+
+    obj = MyStruct.create_from_string("foo\x00\x00")
+    assert 'foo' in repr(obj)
+    assert 'foo' in str(obj)
+

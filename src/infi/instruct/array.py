@@ -53,10 +53,13 @@ class SumSizeArrayMarshal(ArrayBase, Marshal):
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         obj = []
         total_bytes = self.size_marshal.create_from_stream(stream, context)
+        has_tell = hasattr(stream, 'tell')
         while total_bytes > 0:
+            element_size = stream.tell() if has_tell else 0
             element = self.element_marshal.create_from_stream(stream, context, *args, **kwargs)
             obj.append(element)
-            total_bytes -= self.element_marshal.sizeof(element)
+            element_size = stream.tell() - element_size if has_tell else self.element_marshal.sizeof(elemen)
+            total_bytes -= element_size
         assert total_bytes == 0
         return obj
 

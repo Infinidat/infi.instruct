@@ -23,7 +23,7 @@ class ConstField(Field):
                                  self.marshal.to_repr(value, context)))
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return "%s (const)" % super(ConstFieldAdapter, self).to_repr(obj, context)
+        return "%s (const)" % super(ConstField, self).to_repr(obj, context)
 
     def get_value(self, obj):
         return self.value

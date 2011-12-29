@@ -31,3 +31,4 @@ def test_sum_size_array():
     assert not io.is_fixed_size()
     assert io.write_to_string([ ord('a'), ord('b'), ord('c'), ord('d') ]) == "\x00\x04abcd"
     assert io.create_from_string("\x00\x04abcd") == [ ord('a'), ord('b'), ord('c'), ord('d') ]
+

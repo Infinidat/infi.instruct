@@ -1,6 +1,6 @@
 from infi.instruct.errors import InstructError
 from infi.instruct.struct import Struct
-from infi.instruct.macros import StructFunc, SelectStructByFunc, UBInt8, FixedSizeArray, ConstField
+from infi.instruct.macros import StructFunc, SelectStructByFunc, UBInt8, ULInt32, FixedSizeArray, ConstField
 from infi.instruct.struct.selector import FuncStructSelectorMarshal
 
 def test_simple():
@@ -65,3 +65,17 @@ def test_array():
 
     s = MyStruct(my_array=[ PolyStruct1(foo=1, bar=2), PolyStruct1(foo=3, bar=4), PolyStruct2(coo=5) ])
     assert str(s) == "\x01\x04\x01\x02\x01\x04\x03\x04\x02\x03\x05"
+
+def test_cross_read_ahead_boundries():
+    class Struct1(Struct):
+        _fields_ = [ ULInt32("foo") ]
+    
+    class MyStruct(Struct):
+        def _determine_type(self, stream, context=None):
+            stream.read(2)
+            return Struct1
+        _fields_ = [ SelectStructByFunc("foofoo", _determine_type, (4, 4)) ]
+    
+    s = MyStruct.create_from_string("\x02\x00\x00\x00")
+    print(s.foofoo.foo)
+    assert s.foofoo.foo == 2

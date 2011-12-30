@@ -12,17 +12,18 @@ class ReadAheadStream(object):
         
     def read(self, size):
         assert size >= 0
-        
+
         res = ''
         if self.read_ahead_mode:
             res += self.stream.read(size)
             self.buffer += res
-        elif len(self.buffer) > 0:
-            buffer_bytes_to_read = min(len(self.buffer), size)
-            res = self.buffer[0:buffer_bytes_to_read]
-            self.buffer = self.buffer[buffer_bytes_to_read:]
-        elif len(res) < size:
-            res += self.stream.read(size - len(res))
+        else:
+            if len(self.buffer) > 0:
+                buffer_bytes_to_read = min(len(self.buffer), size)
+                res = self.buffer[0:buffer_bytes_to_read]
+                self.buffer = self.buffer[buffer_bytes_to_read:]
+            if len(res) < size:
+                res += self.stream.read(size - len(res))
         return res
     
     def write(self, buf):

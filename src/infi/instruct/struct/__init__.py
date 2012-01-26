@@ -1,8 +1,8 @@
 import types
 from cStringIO import StringIO
 
-from ..base import MarshalBase, WritableContext, EMPTY_CONTEXT, MinMax, ZERO_MIN_MAX
-from ..errors import InstructError, StructNotWellDefinedError
+from ..base import MarshalBase, WritableContext, EMPTY_CONTEXT, ZERO_MIN_MAX
+from ..errors import StructNotWellDefinedError
 
 def copy_if_supported(obj):
     return obj.copy() if hasattr(obj, 'copy') else obj
@@ -196,6 +196,8 @@ class Struct(object):
 
     @classmethod
     def to_repr(cls, obj, context=EMPTY_CONTEXT):
+        if obj is None:
+            return "<none>"
         cls = type(obj)
         context = cls.get_updated_context(obj, context)
         return("%s(%s)" % (cls.__name__, cls._container_.to_repr(obj, context)))

@@ -40,17 +40,15 @@ class SequentialRange(object):
         return self.start == other.start and self.stop == other.stop
 
     def __lt__(self, other):
-        return self.start < other.start and self.to_absolute(sys.maxint).stop < other.to_absolute(sys.maxint).stop
+        return self.start < other.start and self.to_closed(sys.maxint).stop < other.to_closed(sys.maxint).stop
 
     def __repr__(self):
         return "SequentialRange(start={0!r}, stop={1!r})".format(self.start, self.stop)
 
     def overlaps(self, other):
-        self_imag_stop = self.to_absolute(sys.maxint)
-        other_imag_stop = other.to_absolute(sys.maxint)
-
-        return (self.start <= other.start and self_imag_stop >= other.start) or \
-            (self.start <= other_imag_stop and self_imag_stop >= other_imag_stop)
+        a, b = (self, other)  if self.start <= other.start else (other, self)
+        a_imag_stop = a.to_closed(sys.maxint).stop
+        return a_imag_stop > b.start
 
     @classmethod
     def list_sum_length(cls, range_list):

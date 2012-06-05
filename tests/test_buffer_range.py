@@ -1,57 +1,55 @@
 from infi.unittest import TestCase
-from infi.instruct.buffer.reference import Reference, NumericReference
-from infi.instruct.buffer.range import ByteRangeFactory
+from infi.instruct.buffer.reference import Reference, NumericGetAttrReference, Context
+from infi.instruct.buffer.range import RangeFactory, SequentialRange
 
-class NumberHolder:
+class ObjectContext(Context):
+    def __init__(self, obj):
+        super(ObjectContext, self).__init__()
+        self.obj = obj
+
+class ObjectContextReference(Reference):
+    def evaluate(self, ctx):
+        return ctx.obj
+
+    def __repr__(self):
+        return "obj_ctx_ref"
+
+class NumberHolder(object):
     def __init__(self, n):
         self.n = n
         self.k = 10
 
-class NumericAttrReference(Reference, NumericReference):
-    def __init__(self, name):
-        self.name = name
-
-    def value(self, obj):
-        return getattr(obj, self.name)
-
-    def needs_object_for_value(self):
-        return True
-
-bytes_ref = ByteRangeFactory()
+bytes_ref = RangeFactory()
 
 class RangeTestCase(TestCase):
-    def test_bytes_range__slice(self):
-        range1 = bytes_ref[1:NumericAttrReference('n')]
-        self.assertEqual([ slice(1, 10, 1) ], range1.value(NumberHolder(10)))
+    def test_range_factory__slice_range_reference(self):
+        range1 = bytes_ref[1:NumericGetAttrReference(ObjectContextReference(), 'n')]
+        ctx = ObjectContext(NumberHolder(10))
+        self.assertEqualRangeList([ slice(1, 10, 1) ], range1(ctx))
 
-    def test_bytes_range__slice_binary_numeric_expression(self):
-        range1 = bytes_ref[1:NumericAttrReference('n') + 5]
-        self.assertEqual([ slice(1, 15, 1) ], range1.value(NumberHolder(10)))
+    def test_range_factory__slice_range_reference_binary_numeric_expression(self):
+        range1 = bytes_ref[1:NumericGetAttrReference(ObjectContextReference(), 'n') + 5]
+        ctx = ObjectContext(NumberHolder(10))
+        self.assertEqualRangeList([ slice(1, 15, 1) ], range1(ctx))
 
-    def test_bytes_range__binary_numeric_expression(self):
-        range1 = bytes_ref[NumericAttrReference('n') + 5]
-        self.assertEqual([ slice(15, 16, 1) ], range1.value(NumberHolder(10)))
+    def test_range_factory__numeric_reference_binary_numeric_expression(self):
+        range1 = bytes_ref[NumericGetAttrReference(ObjectContextReference(), 'n') + 5]
+        ctx = ObjectContext(NumberHolder(10))
+        self.assertEqualRangeList([ slice(15, 16, 1) ], range1(ctx))
 
-    def test_bytes_range__list(self):
+    def test_range_factory__list_range_reference(self):
         range1 = bytes_ref[1, 5, 7]
-        self.assertEqual([ slice(1, 2, 1), slice(5, 6, 1), slice(7, 8, 1) ], range1.value(None))
+        self.assertEqualRangeList([ slice(1, 2, 1), slice(5, 6, 1), slice(7, 8, 1) ], range1(Context()))
 
-    def test_bytes_range__slice_in_list(self):
+    def test_range_factory__slice_and_list(self):
         range1 = bytes_ref[1:4, 5, 7]
-        self.assertEqual([ slice(1, 4, 1), slice(5, 6, 1), slice(7, 8, 1) ], range1.value(None))
+        self.assertEqualRangeList([ slice(1, 4, 1), slice(5, 6, 1), slice(7, 8, 1) ], range1(Context()))
 
-    def test_bytes_range__slice_needs_object_for_value(self):
-        range1 = bytes_ref[1:4]
-        self.assertFalse(range1.needs_object_for_value())
+    def test_sequential_range_list_length(self):
+        self.assertEqual(6, SequentialRange.sum_length([ SequentialRange(0, 4), SequentialRange(-3, -1) ]))
 
-    def test_bytes_range__number_needs_object_for_value(self):
-        range1 = bytes_ref[4]
-        self.assertFalse(range1.needs_object_for_value())
+    def test_sequential_range_list_length__relative(self):
+        self.assertEqual(None, SequentialRange.sum_length([ SequentialRange(0, 4), SequentialRange(0, -1) ]))
 
-    def test_bytes_range__list_needs_object_for_value(self):
-        range1 = bytes_ref[1, 2, 3, 4]
-        self.assertFalse(range1.needs_object_for_value())
-
-    def test_bytes_range__slice_do_needs_object_for_value(self):
-        range1 = bytes_ref[1:NumericAttrReference('n')]
-        self.assertTrue(range1.needs_object_for_value())
+    def assertEqualRangeList(self, a, b):
+        self.assertEqual(a, [ r.to_slice() for r in b ])

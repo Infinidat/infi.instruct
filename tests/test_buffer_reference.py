@@ -1,6 +1,6 @@
 from infi.unittest import TestCase
 from infi.instruct.buffer.reference import Reference, NumericReference, NumericGetAttrReference, Context
-from infi.instruct.buffer.reference import NumericFuncReference, CyclicReferenceError
+from infi.instruct.buffer.reference import NumericFuncCallReference, CyclicReferenceError
 
 class NumberHolder:
     def __init__(self, n):
@@ -35,7 +35,9 @@ class ReferenceTestCase(TestCase):
             a + 'asdf'
 
     def test_reference__cyclic_reference(self):
-        a = NumericFuncReference(None)
+        a = NumericFuncCallReference(None)
         a.func_ref = a
         with self.assertRaises(CyclicReferenceError):
             a(Context())
+
+        result = repr(a) # make sure it doesn't raise an exception

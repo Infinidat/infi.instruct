@@ -46,10 +46,14 @@ class RangeTestCase(TestCase):
         self.assertEqualRangeList([ slice(1, 4, 1), slice(5, 6, 1), slice(7, 8, 1) ], range1(Context()))
 
     def test_sequential_range_list_length(self):
-        self.assertEqual(6, SequentialRange.sum_length([ SequentialRange(0, 4), SequentialRange(-3, -1) ]))
+        self.assertEqual(6, SequentialRange.list_sum_length([ SequentialRange(0, 4), SequentialRange(1, 3) ]))
 
-    def test_sequential_range_list_length__relative(self):
-        self.assertEqual(None, SequentialRange.sum_length([ SequentialRange(0, 4), SequentialRange(0, -1) ]))
+    def test_sequential_range_list_overlaps(self):
+        self.assertTrue(SequentialRange.list_overlaps([ SequentialRange(0, 4), SequentialRange(1, 3) ]))
+        self.assertTrue(SequentialRange.list_overlaps([ SequentialRange(1, 4), SequentialRange(0, 2) ]))
+        self.assertTrue(SequentialRange.list_overlaps([ SequentialRange(1, 4), SequentialRange(0, 5) ]))
+        self.assertFalse(SequentialRange.list_overlaps([ SequentialRange(0, 4), SequentialRange(4, 5) ]))
+        self.assertFalse(SequentialRange.list_overlaps([ SequentialRange(3, 4), SequentialRange(1, 3) ]))
 
     def assertEqualRangeList(self, a, b):
         self.assertEqual(a, [ r.to_slice() for r in b ])

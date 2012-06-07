@@ -174,6 +174,15 @@ class IOBufferTestCase(TestCase):
             bv = bv1 + bv2
             self.assertEqualBitArrayBitView(ba, bv)
 
+    def test_iadd(self):
+        ba1 = self._create_random_bit_array()
+        ba2 = self._create_random_bit_array()
+        bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=float(ba1.length()) / 8)
+        bv2 = BitView(self._bitarray_to_bytes(ba2), stop=float(ba2.length()) / 8)
+        ba1 += ba2
+        bv1 += bv2
+        self.assertEqualBitArrayBitView(ba1, bv1)
+
     def assertEqualBitArrayBitView(self, ba, bv):
         self.assertEqual(ba.length(), 8 * bv.length())
         ba_bytes = self._bitarray_to_bytes(ba)

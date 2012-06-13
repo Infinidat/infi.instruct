@@ -1,14 +1,15 @@
 import struct
+from bitarray import bitarray
 from infi.unittest import TestCase
 from infi.instruct.buffer.reference import CyclicReferenceError
-from infi.instruct.buffer.range import RangeFactory
+from infi.instruct.buffer.range import ByteRangeFactory
 from infi.instruct.buffer.serialize import UBInt32PackReference, UBInt32UnpackReference
 from infi.instruct.buffer.serialize import StringPackReference, StringUnpackReference
 from infi.instruct.buffer.serialize import BufferPackReference, BufferUnpackReference
 from infi.instruct.buffer.serialize import ListPackReference, FixedSizeListUnpackReference
 from infi.instruct.buffer.buffer import Buffer, TotalSizeReference, FieldReferenceBuilder, InstructBufferError
 
-bytes_ref = RangeFactory()
+bytes_ref = ByteRangeFactory()
 total_size = TotalSizeReference()
 
 def _create_builder_from_params(position=None, pack_position=None, unpack_position=None,
@@ -76,6 +77,51 @@ class BufferTestCase(TestCase):
         foo.f_str = 'hello world'
         self.assertEqual(struct.pack(">L", len(foo.f_str)) + 'hello world', foo.pack())
 
+    def test_buffer_bits__simple(self):
+        class Foo(Buffer):
+            # endianity sucks - this is why we use 1, 0, 3, 2, 5, 4 ...
+            f_int = _uint32_field(position=(bytes_ref[1].bits[0:4] +
+                                            bytes_ref[0].bits[0:4] +
+                                            bytes_ref[3].bits[0:4] +
+                                            bytes_ref[2].bits[0:4] +
+                                            bytes_ref[5].bits[0:4] +
+                                            bytes_ref[4].bits[0:4] +
+                                            bytes_ref[7].bits[0:4] +
+                                            bytes_ref[6].bits[0:4]))
+
+        self.assertEqual(7.5, Foo.byte_size)
+        for n in (0x12345678, 0x87654321, 0, 1, 0x10000000, 0xFF000000):
+            foo = Foo()
+            foo.f_int = n
+            packed_value = foo.pack()
+            self.assertEqual(8, len(packed_value))
+            packed_result = bytearray(8)
+            for i in xrange(8):
+                packed_result[7 - i] = (foo.f_int >> (i * 4)) & 0x0F
+            self.assertEqual(packed_result, packed_value)
+            foo = Foo()
+            foo.unpack(packed_result)
+            self.assertEqual(foo.f_int, n)
+
+    def test_buffer_bits__complex(self):
+        class Foo(Buffer):
+            f_int = _uint32_field(position=(bytes_ref[0:2].bits[4:12] + bytes_ref[2:4].bits[4:12] +
+                                            bytes_ref[4:6].bits[4:12] + bytes_ref[6:8].bits[4:12]))
+
+        self.assertEqual(7.5, Foo.byte_size)
+        for n in (0xFF000000, 0x12345678, 0x87654321, 0, 1, 0x10000000, 0xFF000000):
+            foo = Foo()
+            foo.f_int = n
+            packed_value = foo.pack()
+            self.assertEqual(8, len(packed_value))
+
+            ba = bitarray('0' * (8 * 8), endian='little')
+            int_pack = struct.pack(">L", foo.f_int)
+            for i in xrange(4):
+                b = bitarray(endian='little')
+                b.frombytes(int_pack[i])
+                ba[i * 2 * 8 + 4:i * 2 * 8 + 4 + 8] = b
+            self.assertEqual(ba.tobytes(), packed_value)
 
     def test_buffer_size__static(self):
         class Bar(Buffer):
@@ -209,3 +255,20 @@ class BufferTestCase(TestCase):
         foo.f_str = 'hello world'
         foo.pack()
         print(repr(foo))
+
+    def test_buffer_self_call(self):
+        class Bar(Buffer):
+            def _do_something(self):
+                assert self.f_bar_j == 5
+                self.f_bar_i = 10
+                return self.f_bar_i
+
+            f_bar_i = _uint32_field(position=bytes_ref[0:4], pack_value=_do_something)
+            f_bar_j = _uint32_field(position=bytes_ref[4:8])
+
+        b = Bar()
+        b.f_bar_i = 1
+        b.f_bar_j = 5
+
+        self.assertEqual(struct.pack(">LL", 10, 5), b.pack())
+        self.assertEqual(10, b.f_bar_i)

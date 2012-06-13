@@ -64,8 +64,8 @@ class IOBufferTestCase(TestCase):
         self.assertEqual([ 1, 6, 4 ], list(buf))
 
     def test_setitem__insert_into_empty_range(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[0.125:0.125] = BitView(bytearray((1,)), 0, 0.125)
+        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf[0.125:0.125] = BitView((1,), 0, 0.125)
         self.assertEqual([ 3, 4, 8, 0 ], list(buf))
 
         buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
@@ -183,11 +183,32 @@ class IOBufferTestCase(TestCase):
         bv1 += bv2
         self.assertEqualBitArrayBitView(ba1, bv1)
 
+    def test_insert_zeros(self):
+        bv = BitAwareByteArray(bytearray(1), 0, 0.5)
+        bv[0.5:1.5] = BitView((1,))
+        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('000000010000'), bv)
+
+    def test_insert_zeros_1(self):
+        bv = BitAwareByteArray(bytearray((0xFF, 0, 0, 0)))
+        bv[0:0] = BitView(bytearray((0,)), 0, 0.5)
+        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('000000000000000000000000111111110000'), bv)
+
+    def test_insert_zeros_2(self):
+        bv = BitAwareByteArray(bytearray())
+        bv.zfill(0.5)
+        bv[0.5:1.5] = BitView([ 0xFF ])
+        bv.zfill(2.5)
+        bv[2.5:3.5] = BitView([ 0 ])
+        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('0000000000000000111111110000'), bv)
+
     def assertEqualBitArrayBitView(self, ba, bv):
         self.assertEqual(ba.length(), 8 * bv.length())
         ba_bytes = self._bitarray_to_bytes(ba)
         bv_bytes = str(bv)
         self.assertEqual(ba_bytes, bv_bytes)
+
+    def _bitarray_from_bitstring(self, str):
+        return bitarray("".join(reversed(str)), endian='little')
 
     def _create_random_bit_array(self):
         length_in_bits = random.randint(0, 8 * 16)

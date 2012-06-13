@@ -4,7 +4,7 @@ import itertools
 from itertools import chain
 
 from ..utils import format_exception
-from .range import SequentialRange
+from .range import SequentialRange, SequentialRangeList
 from .reference import Context, Reference, NumericReference
 from .reference import FuncCallReference, NumericFuncCallReference
 from .reference import GetAttrReference, NumericGetAttrReference, ContextGetAttrReference
@@ -70,14 +70,10 @@ class TotalSizeReference(Reference, NumericReference):
         if size is not None:
             return size
 
-        if ctx.is_pack():
-            # Object has dynamic size, so we'll get it from the absolute position of each field.
-            positions = itertools.chain(*[ field.absolute_position_ref(ctx) for field in ctx.fields ])
-            result = SequentialRange.list_max_stop(positions) # total_size calculation
-            assert result is not None
-            return result
-        else:
-            return ctx.input_buffer.length()
+        positions = SequentialRangeList(itertools.chain(*[ field.absolute_position_ref(ctx) for field in ctx.fields ]))
+        result = positions.max_stop() # total_size calculation
+        assert result is not None
+        return result
 
     def __safe_repr__(self):
         return "total_size"
@@ -96,10 +92,10 @@ class AbsolutePositionReference(Reference):
 
     def eval_pack(self, ctx):
         position_list = self.pack_position_ref(ctx)
-        if SequentialRange.list_overlaps(position_list):
+        if position_list.has_overlaps():
             raise ValueError("field position list has overlapping ranges")
 
-        if any([ pos.is_open() for pos in position_list ]):
+        if position_list.is_open():
             # We need the serialization result of this field to set the range. Note that we already checked if the
             # position has overlapping ranges, so there may be only a single open range.
             packed_field = self.field.pack_ref(ctx)
@@ -115,11 +111,11 @@ class AbsolutePositionReference(Reference):
 
     def eval_unpack(self, ctx):
         position_list = self.unpack_position_ref(ctx)
-        if SequentialRange.list_overlaps(position_list):
+        if position_list.has_overlaps():
             raise ValueError("field position list has overlapping ranges")
 
         buffer_len = ctx.input_buffer.length()
-        return [ pos.to_closed(buffer_len) for pos in position_list ]
+        return position_list.to_closed(buffer_len)
 
     def __safe_repr__(self):
         return "abs_position({0!r})".format(self.field)
@@ -289,7 +285,7 @@ class BufferType(type):
                 raise DynamicSizeObjectError()
 
         ctx = PackContext(FakeObject(), fields)
-        positions = []
+        positions = SequentialRangeList()
         for field in fields: # we avoid list comprehension here so we'll know which field raised an error
             try:
                 positions.extend(field.absolute_position_ref(ctx))
@@ -298,7 +294,7 @@ class BufferType(type):
             except:
                 raise InstructBufferError("Error while calculating static byte size", ctx, class_name,
                                           field.attr_name(), sys.exc_info())
-        return SequentialRange.list_max_stop(positions)
+        return positions.max_stop()
 
 class Buffer(object):
     __metaclass__ = BufferType
@@ -313,11 +309,14 @@ class Buffer(object):
 
         for field in fields:
             try:
+                # TODO: move this to logging
+                # print("packing field {name} into position {pos!r} with value {val!r}".format(
+                #     name=field.attr_name(), val=field.pack_ref(ctx), pos=field.absolute_position_ref(ctx)))
                 ctx.output_buffer.set(field.pack_ref(ctx), field.absolute_position_ref(ctx))
             except:
                 raise InstructBufferError("Pack error occured", ctx, type(self), field.attr_name(), sys.exc_info())
 
-        return ctx.output_buffer.get()
+        return bytearray(ctx.output_buffer.get())
 
     def unpack(self, buffer):
         """Unpacks the object's fields from buffer."""

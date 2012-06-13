@@ -50,6 +50,13 @@ class BitView(collections.Sequence):
     def __repr__(self):
         return "{0}(buffer={1!r}, start={2}, stop={3})".format(type(self), self.buffer, self.start, self.stop)
 
+    def to_bitstr(self):
+        result = []
+        for i in xrange(int(self.start * 8), int(self.stop * 8)):
+            byte_i, bit_i = float_to_byte_bit_pair(float(i) / 8)
+            result.append((self.buffer[byte_i] >> bit_i) & 1)
+        return "".join(str(n) for n in reversed(result))
+
     def length(self):
         return self.stop - self.start
 
@@ -59,15 +66,20 @@ class BitView(collections.Sequence):
         return type(self)(self.buffer[start_byte_ofs:stop_byte_ofs], start - start_byte_ofs, stop - start_byte_ofs)
 
     def _get_byte_bits(self, ofs, bit_len):
+        # assert ofs >= 0 and bit_len >= 0, "ofs={0!r}, bit_len={1!r}".format(ofs, bit_len)
         byte_ofs, bit_ofs = float_to_byte_bit_pair(ofs)
         bit_mask = ((1 << bit_len) - 1)
         if bit_ofs == 0:
             return self.buffer[byte_ofs] & bit_mask
+        elif bit_ofs < 0:
+            bit_mask = ((1 << (bit_len + bit_ofs)) - 1)
+            return self.buffer[0] & bit_mask
         elif bit_ofs + bit_len <= 8:
             return (self.buffer[byte_ofs] >> bit_ofs) & bit_mask
         else:
+            cur_byte = self.buffer[byte_ofs]
             next_byte = self.buffer[byte_ofs + 1] if byte_ofs + 1 < len(self.buffer) else 0
-            return (((self.buffer[byte_ofs] >> bit_ofs) & 0xFF) | ((next_byte << (8 - bit_ofs)) & 0xFF)) &  bit_mask
+            return (((cur_byte >> bit_ofs) & 0xFF) | ((next_byte << (8 - bit_ofs)) & 0xFF)) &  bit_mask
 
     def _key_to_range(self, key):
         if isinstance(key, slice):
@@ -75,6 +87,7 @@ class BitView(collections.Sequence):
                 raise NotImplementedError("step must be 1 or None")
             start = self._translate_offset(key.start if key.start is not None else 0)
             stop = self._translate_offset(key.stop if key.stop is not None else self.length())
+            assert start <= stop and start >= 0, "start={0!r}, stop={1!r}".format(start, stop)
         elif isinstance(key, (float, int)):
             start = self._translate_offset(key)
             stop = start + 1
@@ -183,7 +196,8 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
                 del self.buffer[-1]
 
     def _insert_zeros(self, start, stop):
-        assert stop >= start
+        assert start >= 0 and start <= stop, "start={0!r}, stop={1!r}".format(start, stop)
+        assert start <= self.stop
         start_byte, stop_byte = int(math.ceil(start)), int(math.floor(stop))
         whole_byte_delta = stop_byte - start_byte
 
@@ -194,13 +208,17 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
             stop -= whole_byte_delta
 
         if stop > start:
+            assert stop - start <= 1
             bit_len_frac = stop - start
             if int(math.ceil(self.stop + bit_len_frac)) > len(self.buffer):
                 self.buffer.append(0)
-            ofs = self.stop + bit_len_frac - 1
-            while ofs >= start:
-                self._set_byte_bits(ofs, 8, self._get_byte_bits(ofs - bit_len_frac, 8))
-                ofs -= 1
+
+            if start < self.stop:
+                # Inserting in the middle, so we copy from end to start.
+                ofs = self.stop + bit_len_frac - 1
+                while ofs >= start:
+                    self._set_byte_bits(ofs, 8, self._get_byte_bits(ofs - bit_len_frac, 8))
+                    ofs -= 1
             self.stop += bit_len_frac
 
     def _set_byte_bits(self, ofs, bit_len, value):
@@ -256,9 +274,12 @@ class OutputBuffer(object):
         self.buffer = BitAwareByteArray(bytearray())
 
     def set(self, value, range_list):
+        value = BitView(value)
         value_start = 0
+
         for range in range_list:
             assert not range.is_open()
+            assert range.start >= 0 and range.start <= range.stop
             if range.length() > len(value) - value_start:
                 raise ValueError("trying to assign a value with smaller length than the range it's given")
             self.buffer.zfill(range.start)

@@ -1,190 +1,301 @@
 import sys
 import struct
 import functools
+from infi import exceptools
+
 from .reference import Reference, NumericReference, Context
 from .buffer import PackContext, UnpackContext
-from .io_buffer import InputBuffer
+from .io_buffer import InputBuffer, BitAwareByteArray
 from .range import SequentialRange
+
 from ..utils import format_exception
+from ..errors import InstructError
 
-# FIXME: better base exception here
-class PackError(Exception):
-    MESSAGE = "{pack_ref!r} failed to pack {value!r}.\n  Inner exception:\n{inner_exception}"
+class PackError(InstructError):
+    MESSAGE = "{pack_ref!r} failed to pack {value!r}."
+    def __init__(self, pack_ref, value):
+        super(PackError, self).__init__(PackError.MESSAGE.format(pack_ref=pack_ref, value=value))
 
-    def __init__(self, pack_ref, value, exc_info):
-        super(PackError, self).__init__(PackError.MESSAGE.format(pack_ref=pack_ref, value=value,
-                                                                 inner_exception=format_exception(exc_info, "    ")))
-
-# FIXME: better base exception here
-class UnpackError(Exception):
-    MESSAGE = "{unpack_ref!r} failed to pack {buffer!r}.\n  Inner exception:\n{inner_exception}"
+class UnpackError(InstructError):
+    MESSAGE = "{unpack_ref!r} failed to pack {buffer!r}."
     def __init__(self, unpack_ref, buffer, exc_info):
-        super(UnpackError, self).__init__(UnpackError.MESSAGE.format(unpack_ref=unpack_ref, buffer=buffer,
-                                                                     inner_exception=format_exception(exc_info,
-                                                                                                      "    ")))
+        super(UnpackError, self).__init__(UnpackError.MESSAGE.format(unpack_ref=unpack_ref, buffer=buffer))
 
-class PackReference(Reference):
-    def __init__(self, value_ref):
-        assert value_ref is not None
-        self.value_ref = value_ref
+class Packer(object):
+    byte_size = None
 
-    def evaluate(self, ctx):
-        value = self.value_ref(ctx)
-        try:
-            return self.pack(value)
-        except:
-            raise PackError(self, value, sys.exc_info())
-
-    def pack(self, value):
+    def pack(self, object):
         raise NotImplementedError()
 
-class UnpackReference(Reference):
-    def __init__(self, absolute_position_ref):
-        self.absolute_position_ref = absolute_position_ref
+class FillPacker(object):
+    byte_size = None
 
-    def get_absolute_position(self, ctx):
-        return self.absolute_position_ref(ctx)
+    def pack(self, object, byte_size):
+        raise NotImplementedError()
 
-    def get_input(self, ctx):
-        return ctx.input_buffer.get(self.get_absolute_position(ctx))
-
-    def evaluate(self, ctx):
-        buffer = self.get_input(ctx)
-        try:
-            return self.unpack(buffer)
-        except:
-            raise UnpackError(self, buffer, sys.exc_info())
+class Unpacker(object):
+    byte_size = None
 
     def unpack(self, buffer):
         raise NotImplementedError()
 
-class StringPackReference(PackReference):
+ENDIAN_NAME_TO_FORMAT = { 'unspecified': '@', 'native': '=', 'big': '>', 'little': '<' }
+SIGN_NAMES = ("signed", "unsigned")
+
+class NumberMarshal(Packer, Unpacker):
+    struct_format = None
+
+    def __init__(self, sign_name="signed", endian_name="unspecified"):
+        self.sign_name = sign_name
+        self.endian_name = endian_name
+
+        struct_format_char = self.struct_format.lower() if sign_name == "signed" else self.struct_format.upper()
+        self.format = "{0}{1}".format(ENDIAN_NAME_TO_FORMAT[endian_name], struct_format_char)
+
     def pack(self, value):
-        return bytearray(value)
-
-class StringUnpackReference(UnpackReference):
-    def unpack(self, buffer):
-        return str(buffer)
-
-class UBInt32PackReference(PackReference):
-    byte_size = 4
-
-    def pack(self, value):
-        return struct.pack(">L", value)
-
-    def __safe_repr__(self):
-        return "ub_int32_pack({0!r})".format(self.value_ref)
-
-class UBInt32UnpackReference(UnpackReference, NumericReference):
-    byte_size = 4
+        return struct.pack(self.format, value)
 
     def unpack(self, buffer):
-        assert len(buffer) == 4, "buffer size must be 4 but instead got {0}".format(len(buffer))
-        return struct.unpack(">L", str(buffer))[0]
+        assert len(buffer) == self.byte_size, "buffer size must be {0} but instead got {1}".format(self.byte_size,
+                                                                                                   len(buffer))
+        return struct.unpack(self.format, str(buffer))[0], self.byte_size
 
-    def __safe_repr__(self):
-        return "ub_int32_unpack({0!r})".format(self.absolute_position_ref)
+    def __repr__(self):
+        return "{0}_int{1}_{2}_endian".format(self.sign_name, self.byte_size * 8, self.endian_name)
 
-class BufferPackReference(PackReference):
-    def __init__(self, buffer_cls, value_ref):
-        super(BufferPackReference, self).__init__(value_ref)
+class Int8Marshal(NumberMarshal):
+    byte_size = 1
+    struct_format = "b"
+
+class Int16Marshal(NumberMarshal):
+    byte_size = 2
+    struct_format = "h"
+
+class Int32Marshal(NumberMarshal):
+    byte_size = 4
+    struct_format = "l"
+
+class Int64Marshal(NumberMarshal):
+    byte_size = 8
+    struct_format = "q"
+
+class Float32Marshal(NumberMarshal):
+    byte_size = 4
+    struct_format = "f"
+
+    def __init__(self, endian_name="unspecified"):
+        super(Float32Marshal, self).__init__("signed", endian_name)
+
+    def __repr__(self):
+        return "float32_{0}_endian".format(self.endian_name)
+
+class Float64Marshal(NumberMarshal):
+    byte_size = 8
+    struct_format = "d"
+
+    def __init__(self, endian_name="unspecified"):
+        super(Float64Marshal, self).__init__("signed", endian_name)
+
+    def __repr__(self):
+        return "float64_{0}_endian".format(self.endian_name)
+
+INT_MARSHALS = { 1: Int8Marshal, 2: Int16Marshal, 4: Int32Marshal, 8: Int64Marshal }
+class IntMarshal(FillPacker, Unpacker):
+    def __init__(self, sign_name="unsigned", endian_name="unspecified"):
+        assert sign_name in SIGN_NAMES
+        assert endian_name in ENDIAN_NAME_TO_FORMAT.keys()
+        self.sign_name = sign_name
+        self.endian_name = endian_name
+
+    def pack(self, value, byte_size):
+        marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, byte_size)
+        return marshal.pack(value)
+
+    def unpack(self, buffer):
+        marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, buffer.length())
+        return marshal.unpack(buffer)
+
+    def __repr__(self):
+        return "{0}_int_{1}_endian".format(self.sign_name, self.endian_name)
+
+    @classmethod
+    def create_size_specific_marshal(cls, sign_name, endian_name, byte_size):
+        return INT_MARSHALS[byte_size](sign_name, endian_name)
+
+FLOAT_MARSHALS = { 4: Float32Marshal, 8: Float64Marshal }
+class FloatMarshal(IntMarshal):
+    def __init__(self, endian_name="unspecified"):
+        super(FloatMarshal, self).__init__("signed", endian_name)
+
+    def __repr__(self):
+        return "float_{1}_endian".format(self.endian_name)
+
+    @classmethod
+    def create_size_specific_marshal(cls, sign_name, endian_name, byte_size):
+        assert sign_name == "signed"
+        return FLOAT_MARSHALS[byte_size](endian_name)
+
+class ListPacker(Packer):
+    def __init__(self, item_packer, n_items=None):
+        self.item_packer = item_packer
+        self.n_items = n_items
+        if item_packer.byte_size is not None and n_items is not None:
+            self.byte_size = item_packer.byte_size * n_items
+
+    def pack(self, list):
+        assert self.n_items is None or (len(list) == self.n_items)
+
+        result = BitAwareByteArray(bytearray())
+        for item in list:
+            result += self.item_packer.pack(item)
+
+        assert self.byte_size is None or (self.byte_size == result.length())
+        return result
+
+    def __repr__(self):
+        return "{0!r}_list{1}".format(self.item_packer, "[%d]" % (self.n_items,) if self.n_items is not None else "")
+
+class ListUnpacker(Unpacker):
+    def __init__(self, item_unpacker, n_items=None):
+        self.item_unpacker = item_unpacker
+        self.n_items = n_items
+        if item_unpacker.byte_size is not None and n_items is not None:
+            self.byte_size = item_unpacker.byte_size * n_items
+
+    def unpack(self, buffer):
+        result = []
+        n_items = self.n_items
+        item_len = self.item_unpacker.byte_size
+        if n_items is None and item_len is not None:
+            # We can determine how many elements in the list since we know each element's size.
+            n_items = buffer.length() / item_len
+
+        result = []
+        offset = 0
+        if item_len is not None:
+            for i in xrange(n_items):
+                item, _ = self.item_unpacker.unpack(buffer[offset:offset + item_len])
+                result.append(item)
+                offset += item_len
+        else:
+            while offset < buffer.length():
+                item, item_len = self.item_unpacker.unpack(buffer[offset:])
+                result.append(item)
+                offset += item_len
+            assert offset == buffer.length()
+
+        return result, offset
+
+    def __repr__(self):
+        return "{0!r}_list{1}".format(self.item_packer, "[%d]" % (self.n_items,) if self.n_items is not None else "")
+
+class StringMarshal(Packer, Unpacker):
+    def __init__(self, encoding='ascii'):
+        self.encoding = encoding
+
+    def pack(self, value):
+        return bytearray(str(value).encode(self.encoding))
+
+    def unpack(self, buffer):
+        result = str(buffer).decode(self.encoding)
+        return result, len(result)
+
+JUSTIFY_OPTIONS = ('left', 'right', 'center')
+class FillStringMarshal(FillPacker, Unpacker):
+    def __init__(self, justify='left', padding='\x00', encoding='ascii'):
+        self.justify = justify
+        self.padding = padding
+        self.encoding = encoding
+
+    def pack(self, value, byte_size):
+        result = str(value).encode(self.encoding)
+        if self.justify == 'left':
+            result = result.ljust(byte_size, self.padding)
+        elif self.justify == 'right':
+            result = result.rjust(byte_size, self.padding)
+        else: # center
+            result = result.center(byte_size, self.padding)
+        return bytearray(result)
+
+    def unpack(self, buffer):
+        value = str(buffer).decode(self.encoding)
+        if self.justify == 'left':
+            value = value.rstrip(self.padding)
+        elif self.justify == 'right':
+            value = value.lstrip(self.padding)
+        else: # center
+            value = value.strip(self.padding)
+        return value, len(value)
+
+class BufferMarshal(Packer, Unpacker):
+    def __init__(self, buffer_cls):
         self.buffer_cls = buffer_cls
+        self.byte_size = self.buffer_cls.byte_size
 
     def pack(self, value):
         return value.pack()
 
-    def __safe_repr__(self):
-        return "{0}.pack({1!r})".format(repr(self.buffer_cls), self.value_ref)
-
-    @classmethod
-    def create_factory(cls, buffer_cls):
-        return functools.partial(BufferPackReference, buffer_cls)
-
-class BufferUnpackReference(UnpackReference):
-    def __init__(self, buffer_cls, value_ref):
-        super(BufferUnpackReference, self).__init__(value_ref)
-        self.buffer_cls = buffer_cls
-
     def unpack(self, buffer):
-        obj = self.buffer_cls()
-        obj.unpack(buffer)
-        return obj
+        item = self.buffer_cls()
+        size = item.unpack(buffer)
+        return item, size
 
-    def __safe_repr__(self):
-        return "{0}.unpack({1!r})".format(repr(self.buffer_cls), self.absolute_position_ref)
+class PackerReference(Reference):
+    byte_size = None
 
-    @classmethod
-    def create_factory(cls, buffer_cls):
-        return functools.partial(BufferUnpackReference, buffer_cls)
-
-class ListPackContext(Context):
-    def __init__(self, list, n):
-        super(ListPackContext, self).__init__()
-        self.list = list
-        self.n = n
-
-class ListElementReference(Reference):
-    def evaluate(self, ctx):
-        return ctx.list[ctx.n]
-
-    def __safe_repr__(self):
-        "array_element_ref"
-
-class ListPackReference(PackReference):
-    def __init__(self, element_pack_cls, value_ref):
-        super(ListPackReference, self).__init__(value_ref)
-        self.list_element_ref = ListElementReference()
-        self.element_pack = element_pack_cls(self.list_element_ref)
-
-    def pack(self, list):
-        result = bytearray()
-        for n in xrange(len(list)):
-            ctx = ListPackContext(list, n)
-            result += self.element_pack(ctx)
-        return result
-
-    def __safe_repr__(self):
-        return "list_pack({0!r})".format(self.element_pack_cls)
-
-    @classmethod
-    def create_factory(cls, element_pack_cls):
-        return functools.partial(ListPackReference, element_pack_cls)
-
-class ListUnpackContext(Context):
-    def __init__(self, buffer, bytes_read):
-        super(ListUnpackContext, self).__init__()
-        self.input_buffer = InputBuffer(buffer)
-        self.bytes_read = bytes_read
-
-class FixedSizeElementPositionReference(Reference, NumericReference):
-    def __init__(self, size):
-        self.size = size
+    def __init__(self, packer, value_ref):
+        assert value_ref is not None
+        self.packer = packer
+        self.value_ref = value_ref
+        self.byte_size = self.packer.byte_size
 
     def evaluate(self, ctx):
-        return [ SequentialRange(ctx.bytes_read, ctx.bytes_read + self.size) ]
-
-class FixedSizeListUnpackReference(UnpackReference):
-    def __init__(self, element_unpack_cls, element_size, absolute_position_ref):
-        super(FixedSizeListUnpackReference, self).__init__(absolute_position_ref)
-        self.element_size = element_size
-        self.element_position_ref = FixedSizeElementPositionReference(element_size)
-        self.element_unpack = element_unpack_cls(self.element_position_ref)
-
-    def unpack(self, buffer):
-        result = []
-        bytes_read = 0
-        while bytes_read < len(buffer):
-            ctx = ListUnpackContext(buffer, bytes_read)
-            result.append(self.element_unpack(ctx))
-            bytes_read += self.element_size
-
-        return result
+        value = self.value_ref(ctx)
+        try:
+            return self.packer.pack(value)
+        except:
+            raise exceptools.chain(PackError(self, value))
 
     def __safe_repr__(self):
-        return "fixed_size_list_unpack({0!r}, {1!r}, {2!r})".format(self.element_unpack,
-                                                                    self.element_size,
-                                                                    self.absolute_position_ref)
+        return "{0!r}_pack({1!r})".format(self.packer, self.value_ref)
 
-    @classmethod
-    def create_factory(cls, element_unpack_cls, element_size):
-        return functools.partial(FixedSizeListUnpackReference, element_unpack_cls, element_size)
+class FillPackerReference(Reference):
+    byte_size = None
+
+    def __init__(self, packer, byte_size_ref, value_ref):
+        assert value_ref is not None
+        self.packer = packer
+        self.byte_size_ref = self.byte_size_ref
+        self.value_ref = value_ref
+
+    def evaluate(self, ctx):
+        value = self.value_ref(ctx)
+        byte_size = self.byte_size_ref(ctx)
+        try:
+            return self.packer.pack(value, byte_size)
+        except:
+            raise exceptools.chain(PackError(self, value))
+
+    def __safe_repr__(self):
+        return "{0!r}_pack({1!r}, {2!r})".format(self.packer, self.value_ref, self.byte_size_ref)
+
+class UnpackerReference(Reference):
+    byte_size = None
+
+    def __init__(self, unpacker, absolute_position_ref):
+        self.unpacker = unpacker
+        self.absolute_position_ref = absolute_position_ref
+        self.byte_size = self.unpacker.byte_size
+
+    def get_absolute_position(self, ctx):
+        return self.absolute_position_ref(ctx)
+
+    def evaluate(self, ctx):
+        buffer = ctx.input_buffer.get(self.absolute_position_ref(ctx))
+        try:
+            return self.unpacker.unpack(buffer)[0]
+        except:
+            raise UnpackError(self, buffer)
+
+    def __safe_repr__(self):
+        return "{0!r}_unpack({1!r})".format(self.unpacker, self.absolute_position_ref)

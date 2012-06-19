@@ -269,6 +269,9 @@ class InputBuffer(object):
     def length(self):
         return len(self.buffer)
 
+    def __repr__(self):
+        return "InputBuffer({0!r})".format(self.buffer)
+
 class OutputBuffer(object):
     def __init__(self):
         self.buffer = BitAwareByteArray(bytearray())

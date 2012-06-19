@@ -92,6 +92,24 @@ class Reference(object):
             return NumberReference(ref)
         return ObjectReference(ref)
 
+    def is_static(self):
+        # We want to see if this reference can resolve w/o external dependencies, i.e. doesn't need anything from
+        # the context. To do that, we have a "fake" context that raises an exception if someone tries to fetch
+        # an attribute from it.
+        class NotStaticObjectError(Exception):
+            pass
+
+        class StaticContext(Context):
+            def __getattr__(self, name):
+                raise NotStaticObjectError()
+
+        ctx = StaticContext()
+        try:
+            self(ctx)
+            return True
+        except NotStaticObjectError:
+            return False
+
 class NumericReference(object):
     """
     A numeric reference is a mixin that adds support for arithmetic operators, such as add/sub.

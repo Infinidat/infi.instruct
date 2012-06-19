@@ -203,7 +203,7 @@ class BufferTestCase(TestCase):
         foo = Foo()
         foo.f_str = 'hello world'
         foo.pack()
-        print(repr(foo))
+        self.assertEquals("test_buffer_buffer.Foo(f_int=11, f_str='hello world')", repr(foo))
 
     def test_buffer_self_call(self):
         class Bar(Buffer):

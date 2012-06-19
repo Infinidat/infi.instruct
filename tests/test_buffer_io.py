@@ -179,7 +179,6 @@ class IOBufferTestCase(TestCase):
         ba2 = self._create_random_bit_array()
         bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=float(ba1.length()) / 8)
         bv2 = BitView(self._bitarray_to_bytes(ba2), stop=float(ba2.length()) / 8)
-        print("ba1={0!r}, ba2={1!r} bv1={2!r}, bv2={3!r}".format(ba1, ba2, bv1, bv2))
         ba1 += ba2
         bv1 += bv2
         self.assertEqualBitArrayBitView(ba1, bv1)

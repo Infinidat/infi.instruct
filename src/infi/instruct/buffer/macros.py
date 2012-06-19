@@ -2,31 +2,40 @@ from .range import SequentialRangeList, ByteRangeFactory
 from .reference import Reference, Context, ContextGetAttrReference, ObjectReference
 from .reference import GetAttrReference, SetAndGetAttrReference, NumericSetAndGetAttrReference
 from .reference import NumericFuncCallReference, NumericGetAttrReference
-from .buffer import FieldReference, NumericFieldReference
-from .buffer import  PackAbsolutePositionReference, UnpackAbsolutePositionReference
+from .buffer import Buffer, BufferType, FieldReference, NumericFieldReference
+from .buffer import PackAbsolutePositionReference, UnpackAbsolutePositionReference
 from .buffer import TotalSizeReference
-from .serialize import FillPacker, IntMarshal, FloatMarshal, INT_MARSHALS, FLOAT_MARSHALS
+from .serialize import FillPacker, Packer, Unpacker, IntMarshal, FloatMarshal, INT_MARSHALS, FLOAT_MARSHALS
 from .serialize import StringMarshal, FillStringMarshal, BufferMarshal
 from .serialize import Int8Marshal, Int16Marshal, Int32Marshal, Int64Marshal, Float32Marshal, Float64Marshal
-from .serialize import ListPacker, ListUnpacker
+from .serialize import BitIntMarshal, ListPacker, ListUnpacker
 from .serialize import PackerReference, UnpackerReference, FillPackerReference
 
+__all__ = [ 'int8', 'int16', 'int32', 'int64', 'float32', 'float64', 'bytes_ref', 'total_size',
+            'int_field', 'float_field', 'str_field', 'buffer_field', 'list_field' ]
 ENDIAN = ('little', 'big', 'native')
 SIGN = ('signed', 'unsigned')
 JUSTIFY = ('left', 'right')
 
-
+int8 = Int8Marshal
+int16 = Int16Marshal
+int32 = Int32Marshal
+int64 = Int64Marshal
+float32 = Float32Marshal
+float64 = Float64Marshal
 bytes_ref = ByteRangeFactory()
 total_size = TotalSizeReference()
 
 class FieldReferenceBuilder(object):
-    def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack):
+    def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack,
+                 unpack_after):
         self.numeric = numeric
         self.set_before_pack = set_before_pack
         self.set_after_unpack = set_after_unpack
         self.where = where
         self.where_when_pack = where_when_pack
         self.where_when_unpack = where_when_unpack
+        self.unpack_after = unpack_after
         self.packer = None
         self.unpacker = None
         self.pack_size = None
@@ -81,7 +90,7 @@ class FieldReferenceBuilder(object):
         self._set_packer_on_field(field)
         self._set_unpacker_on_field(field)
         self._set_unpack_value_on_field(field, get_obj_from_ctx_ref, set_and_get_class)
-
+        self._set_unpack_after_on_field(field)
         return field
 
     def _set_position_on_field(self, field):
@@ -127,12 +136,46 @@ class FieldReferenceBuilder(object):
 
         field.unpack_value_ref = unpack_value_ref
 
+    def _set_unpack_after_on_field(self, field):
+        if self.unpack_after is None:
+            self.unpack_after = []
+        elif not isinstance(self.unpack_after, (list, tuple)):
+            self.unpack_after = [ self.unpack_after ]
+
+        for unpack_after_field in self.unpack_after:
+            assert isinstance(unpack_after_field, FieldReference)
+
+        field.unpack_after = self.unpack_after
+
+class SelectorDecoratorUnpacker(Unpacker):
+    def __init__(self, selector):
+        self.selector = selector
+        assert self.selector.func_code.co_argcount in xrange(1, 3)
+
+    def unpack(self, ctx, buffer):
+        if self.selector.func_code.co_argcount == 2:
+            unpacker = self.selector(ctx.obj, buffer)
+        else:
+            unpacker = self.selector(ctx.obj)
+
+        if isinstance(unpacker, BufferType):
+            result = unpacker()
+            byte_size = result.unpack(buffer)
+            return result, byte_size
+        elif isinstance(unpacker, Unpacker):
+            return unpacker.unpack(ctx, buffer)
+        raise ValueError("selector {0!r} returned an unpacker {1!r} that's not of type Buffer or Unpacker.".format(self.selector, type))
+
+    def __repr__(self):
+        return "{0}".format(self.selector)
+
 def int_field(endian='little', sign='unsigned',
               set_before_pack=None,
               set_after_unpack=None,
               where=None,
               where_when_pack=None,
-              where_when_unpack=None):
+              where_when_unpack=None,
+              unpack_after=None):
     assert endian in ENDIAN
     assert sign in SIGN
 
@@ -141,17 +184,24 @@ def int_field(endian='little', sign='unsigned',
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
-                                    where_when_unpack=where_when_unpack)
+                                    where_when_unpack=where_when_unpack,
+                                    unpack_after=unpack_after)
     builder.resolve_static_where()
     if builder.pack_size is not None:
-        assert builder.pack_size in INT_MARSHALS
-        builder.set_packer(INT_MARSHALS[builder.pack_size](sign, endian))
+        if builder.pack_size < 1:
+            builder.set_packer(BitIntMarshal(builder.pack_size))
+        else:
+            assert builder.pack_size in INT_MARSHALS
+            builder.set_packer(INT_MARSHALS[builder.pack_size](sign, endian))
     else:
         builder.set_packer(IntMarshal(sign, endian))
 
     if builder.unpack_size is not None:
-        assert builder.unpack_size in INT_MARSHALS
-        builder.set_unpacker(INT_MARSHALS[builder.pack_size](sign, endian))
+        if builder.pack_size < 1:
+            builder.set_unpacker(BitIntMarshal(builder.unpack_size))
+        else:
+            assert builder.unpack_size in INT_MARSHALS
+            builder.set_unpacker(INT_MARSHALS[builder.pack_size](sign, endian))
     else:
         builder.set_unpacker(IntMarshal(sign, endian))
 
@@ -162,13 +212,15 @@ def float_field(size=None, endian='little',
                 set_after_unpack=None,
                 where=None,
                 where_when_pack=None,
-                where_when_unpack=None):
+                where_when_unpack=None,
+                unpack_after=None):
     builder = FieldReferenceBuilder(numeric=True,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
-                                    where_when_unpack=where_when_unpack)
+                                    where_when_unpack=where_when_unpack,
+                                    unpack_after=unpack_after)
     builder.resolve_static_where()
 
     if builder.pack_size is not None:
@@ -190,13 +242,15 @@ def str_field(encoding='ascii', pad_char=' ', justify='left',
               set_after_unpack=None,
               where=None,
               where_when_pack=None,
-              where_when_unpack=None):
+              where_when_unpack=None,
+              unpack_after=None):
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
-                                    where_when_unpack=where_when_unpack)
+                                    where_when_unpack=where_when_unpack,
+                                    unpack_after=unpack_after)
     builder.resolve_static_where()
     if builder.pack_size is not None:
         builder.set_packer(FillStringMarshal(justify=justify, padding=pad_char, encoding=encoding))
@@ -210,55 +264,55 @@ def str_field(encoding='ascii', pad_char=' ', justify='left',
 
     return builder.create()
 
-def field(type=None, unpack_selector=None,
-          set_before_pack=None,
-          set_after_unpack=None,
-          where=None,
-          where_when_pack=None,
-          where_when_unpack=None):
+def buffer_field(type,
+                 unpack_selector=None,
+                 set_before_pack=None,
+                 set_after_unpack=None,
+                 where=None,
+                 where_when_pack=None,
+                 where_when_unpack=None,
+                 unpack_after=None):
+    assert type is not None
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
-                                    where_when_unpack=where_when_unpack)
-    if type is not None:
-        assert unpack_selector is None
-        marshal = BufferMarshal(type)
-        builder.set_packer(marshal)
-        builder.set_unpacker(marshal)
+                                    where_when_unpack=where_when_unpack,
+                                    unpack_after=unpack_after)
+
+    marshal = BufferMarshal(type)
+    builder.set_packer(marshal)
+
+    if unpack_selector is not None:
+        builder.set_unpacker(SelectorDecoratorUnpacker(unpack_selector))
     else:
-        # FIXME: implement
-        raise NotImplementedError()
+        builder.set_unpacker(marshal)
 
     return builder.create()
 
-def list_field(type=None, n=None, selector=None,
+def list_field(type, n=None, unpack_selector=None,
                set_before_pack=None,
                set_after_unpack=None,
                where=None,
                where_when_pack=None,
-               where_when_unpack=None):
-    assert not (selector is not None and type is not None)
-
+               where_when_unpack=None,
+               unpack_after=None):
+    assert type is not None
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
-                                    where_when_unpack=where_when_unpack)
+                                    where_when_unpack=where_when_unpack,
+                                    unpack_after=unpack_after)
 
-    if type is not None:
-        builder.set_packer(ListPacker(type, n))
-        builder.set_unpacker(ListUnpacker(type, n))
+    marshal = BufferMarshal(type) if isinstance(type, BufferType) else type
+    assert isinstance(marshal, Unpacker) and isinstance(marshal, (Packer, FillPacker))
+    builder.set_packer(ListPacker(marshal, n))
+    if unpack_selector is not None:
+        builder.set_unpacker(ListUnpacker(SelectorDecoratorUnpacker(unpack_selector)))
     else:
-        raise NotImplementedError()
+        builder.set_unpacker(ListUnpacker(marshal, n))
 
     return builder.create()
-
-int8 = Int8Marshal
-int16 = Int16Marshal
-int32 = Int32Marshal
-int64 = Int64Marshal
-float32 = Float32Marshal
-float64 = Float64Marshal

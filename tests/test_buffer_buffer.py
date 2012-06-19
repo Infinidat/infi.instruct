@@ -3,7 +3,7 @@ from bitarray import bitarray
 from infi.unittest import TestCase
 from infi.instruct.buffer.reference import CyclicReferenceError
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
-from infi.instruct.buffer.macros import int_field, float_field, str_field, field, list_field
+from infi.instruct.buffer.macros import int_field, float_field, str_field, buffer_field, list_field
 from infi.instruct.buffer.macros import bytes_ref, total_size, int32
 from infi.exceptools import *
 
@@ -103,21 +103,21 @@ class BufferTestCase(TestCase):
         self.assertEqual(len("olleh!"), foo.f_str_len)
         self.assertEqual("olleh!", foo.f_str)
 
-    def test_buffer_pack_unpack__buffer_with_ref(self):
+    def test_buffer_pack_unpack__buffer_with_ref2(self):
         class Bar(Buffer):
-            f_bar_i = _uint32_field(position=bytes_ref[0:4])
-            f_bar_j = _uint32_field(position=bytes_ref[4:8])
+            f_bar_i = int_field(where=bytes_ref[0:4])
+            f_bar_j = int_field(where=bytes_ref[4:8])
 
         class Foo(Buffer):
-            f_foo_i = _uint32_field(position=bytes_ref[0:4])
-            f_bar = _buffer_field(position=bytes_ref[4:], type=Bar)
+            f_foo_i = int_field(where=bytes_ref[0:4])
+            f_bar = buffer_field(where=bytes_ref[4:], type=Bar)
 
         foo = Foo()
         foo.f_foo_i = 42
         foo.f_bar = Bar()
         foo.f_bar.f_bar_i = 12
         foo.f_bar.f_bar_j = 21
-        self.assertEqual(struct.pack(">LLL", foo.f_foo_i, foo.f_bar.f_bar_i, foo.f_bar.f_bar_j), foo.pack())
+        self.assertEqual(struct.pack("=LLL", foo.f_foo_i, foo.f_bar.f_bar_i, foo.f_bar.f_bar_j), foo.pack())
 
     def test_buffer_size__dynamic(self):
         class Foo(Buffer):
@@ -133,7 +133,7 @@ class BufferTestCase(TestCase):
 
         class Foo(Buffer):
             f_foo_i = int_field(where=bytes_ref[0:4])
-            f_bar = field(where=bytes_ref[4:4 + Bar.byte_size], type=Bar)
+            f_bar = buffer_field(where=bytes_ref[4:4 + Bar.byte_size], type=Bar)
 
         self.assertEqual(Bar.byte_size + 4, Foo.byte_size)
 
@@ -221,3 +221,110 @@ class BufferTestCase(TestCase):
 
         self.assertEqual(struct.pack("=LL", 10, 5), b.pack())
         self.assertEqual(10, b.f_bar_i)
+
+    def test_buffer_bits(self):
+        class Foo(Buffer):
+            f_a = int_field(where=bytes_ref[0].bits[0:4])
+            f_b = int_field(where=bytes_ref[0].bits[4:8])
+
+        self.assertEquals(1, Foo.byte_size)
+        foo = Foo()
+        foo.f_a = 3
+        foo.f_b = 8
+        self.assertEqual("\x83", foo.pack())
+
+        foo = Foo()
+        foo.unpack("\x12")
+        self.assertEqual(foo.f_a, 2)
+        self.assertEqual(foo.f_b, 1)
+
+    def test_buffer_str_justify(self):
+        class Foo(Buffer):
+            f_a = str_field(where=bytes_ref[0:8], justify='right', pad_char=' ')
+
+        foo = Foo()
+        foo.f_a = '123'
+        self.assertEquals("     123", foo.pack())
+
+        foo.unpack(" 1234567")
+        self.assertEquals("1234567", foo.f_a)
+
+    def test_buffer_selector(self):
+        class Bar(Buffer):
+            f_a = int_field(where=bytes_ref[0:4])
+
+        class Bar2(Bar):
+            f_b = int_field(where=bytes_ref[4:8])
+
+        class Foo(Buffer):
+            def _choose_bar(self):
+                return Bar if self.f_select == 0 else Bar2
+
+            f_select = int_field(where=bytes_ref[0:4])
+            f_obj = buffer_field(where=bytes_ref[4:], type=Bar, unpack_selector=_choose_bar)
+
+        foo = Foo()
+        foo.f_select = 0
+        foo.f_obj = Bar()
+        foo.f_obj.f_a = 42
+        self.assertEquals(struct.pack("=LL", 0, 42), foo.pack())
+
+        foo.f_select = 1
+        foo.f_obj = Bar2()
+        foo.f_obj.f_a = 42
+        foo.f_obj.f_b = 24
+        self.assertEquals(struct.pack("=LLL", 1, 42, 24), foo.pack())
+
+        foo = Foo()
+        foo.unpack(struct.pack("=LLL", 1, 13, 31))
+        self.assertEquals(1, foo.f_select)
+        self.assertEquals(13, foo.f_obj.f_a)
+        self.assertEquals(31, foo.f_obj.f_b)
+
+    def test_buffer_list_selector(self):
+        class Bar(Buffer):
+            f_a = int_field(where=bytes_ref[0:4])
+
+            def __init__(self, f_a=0):
+                self.f_a = f_a
+
+            def __eq__(self, other):
+                return self.f_a == other.f_a
+
+        class Bar2(Bar):
+            f_b = int_field(where=bytes_ref[4:8])
+
+            def __init__(self, f_a=0, f_b=0):
+                super(Bar2, self).__init__(f_a)
+                self.f_b = f_b
+
+            def __eq__(self, other):
+                return self.f_a == other.f_a and self.f_b == other.f_b
+
+        class Foo(Buffer):
+            def _choose_bar(self):
+                return Bar if self.f_select == 0 else Bar2
+
+            f_select = int_field(where=bytes_ref[0:4])
+            f_list = list_field(where=bytes_ref[4:], type=Bar,
+                                unpack_selector=_choose_bar,
+                                unpack_after=f_select)
+
+        foo = Foo()
+        foo.f_select = 0
+        foo.f_list = [ Bar(1), Bar(2), Bar(3) ]
+        self.assertEquals(struct.pack("=LLLL", 0, 1, 2, 3), foo.pack())
+
+        foo.f_select = 1
+        foo.f_list = [ Bar2(1, 2), Bar2(3, 4), Bar2(5, 6) ]
+        self.assertEquals(struct.pack("=LLLLLLL", 1, 1, 2, 3, 4, 5, 6), foo.pack())
+
+        foo = Foo()
+        foo.unpack(struct.pack("=LLL", 0, 13, 31))
+        self.assertEquals(0, foo.f_select)
+        self.assertEquals([ Bar(13), Bar(31) ], foo.f_list)
+
+        foo = Foo()
+        foo.unpack(struct.pack("=LLLLLLL", 1, 13, 31, 12, 21, 45, 54))
+        self.assertEquals(1, foo.f_select)
+        self.assertEquals([ Bar2(13, 31), Bar2(12, 21), Bar2(45, 54) ], foo.f_list)

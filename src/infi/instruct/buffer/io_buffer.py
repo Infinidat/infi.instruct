@@ -208,9 +208,9 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
             stop -= whole_byte_delta
 
         if stop > start:
-            assert stop - start <= 1
+            assert stop - start <= 2, "start={0}, stop={1}".format(start, stop)
             bit_len_frac = stop - start
-            if int(math.ceil(self.stop + bit_len_frac)) > len(self.buffer):
+            while int(math.ceil(self.stop + bit_len_frac)) > len(self.buffer):
                 self.buffer.append(0)
 
             if start < self.stop:

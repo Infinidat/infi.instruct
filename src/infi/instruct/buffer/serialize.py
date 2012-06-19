@@ -18,7 +18,7 @@ class PackError(InstructError):
 
 class UnpackError(InstructError):
     MESSAGE = "{unpack_ref!r} failed to pack {buffer!r}."
-    def __init__(self, unpack_ref, buffer, exc_info):
+    def __init__(self, unpack_ref, buffer):
         super(UnpackError, self).__init__(UnpackError.MESSAGE.format(unpack_ref=unpack_ref, buffer=buffer))
 
 class Packer(object):
@@ -36,7 +36,7 @@ class FillPacker(object):
 class Unpacker(object):
     byte_size = None
 
-    def unpack(self, buffer):
+    def unpack(self, ctx, buffer):
         raise NotImplementedError()
 
 ENDIAN_NAME_TO_FORMAT = { 'unspecified': '@', 'native': '=', 'big': '>', 'little': '<' }
@@ -55,13 +55,25 @@ class NumberMarshal(Packer, Unpacker):
     def pack(self, value):
         return struct.pack(self.format, value)
 
-    def unpack(self, buffer):
+    def unpack(self, ctx, buffer):
         assert len(buffer) == self.byte_size, "buffer size must be {0} but instead got {1}".format(self.byte_size,
                                                                                                    len(buffer))
         return struct.unpack(self.format, str(buffer))[0], self.byte_size
 
     def __repr__(self):
         return "{0}_int{1}_{2}_endian".format(self.sign_name, self.byte_size * 8, self.endian_name)
+
+class BitIntMarshal(Packer, Unpacker):
+    def __init__(self, byte_size):
+        self.byte_size = byte_size
+
+    def pack(self, value):
+        result = BitAwareByteArray(bytearray(1), 0, self.byte_size)
+        result[0:] = value
+        return result
+
+    def unpack(self, ctx, buffer):
+        return buffer[0:self.byte_size][0], self.byte_size
 
 class Int8Marshal(NumberMarshal):
     byte_size = 1
@@ -108,12 +120,18 @@ class IntMarshal(FillPacker, Unpacker):
         self.endian_name = endian_name
 
     def pack(self, value, byte_size):
-        marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, byte_size)
+        if byte_size < 1:
+            marshal = BitIntMarshal(byte_size)
+        else:
+            marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, byte_size)
         return marshal.pack(value)
 
-    def unpack(self, buffer):
-        marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, buffer.length())
-        return marshal.unpack(buffer)
+    def unpack(self, ctx, buffer):
+        if byte_size < 1:
+            marshal = BitIntMarshal(buffer.length())
+        else:
+            marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, buffer.length())
+        return marshal.unpack(ctx, buffer)
 
     def __repr__(self):
         return "{0}_int_{1}_endian".format(self.sign_name, self.endian_name)
@@ -162,7 +180,7 @@ class ListUnpacker(Unpacker):
         if item_unpacker.byte_size is not None and n_items is not None:
             self.byte_size = item_unpacker.byte_size * n_items
 
-    def unpack(self, buffer):
+    def unpack(self, ctx, buffer):
         result = []
         n_items = self.n_items
         item_len = self.item_unpacker.byte_size
@@ -174,12 +192,12 @@ class ListUnpacker(Unpacker):
         offset = 0
         if item_len is not None:
             for i in xrange(n_items):
-                item, _ = self.item_unpacker.unpack(buffer[offset:offset + item_len])
+                item, _ = self.item_unpacker.unpack(ctx, buffer[offset:offset + item_len])
                 result.append(item)
                 offset += item_len
         else:
             while offset < buffer.length():
-                item, item_len = self.item_unpacker.unpack(buffer[offset:])
+                item, item_len = self.item_unpacker.unpack(ctx, buffer[offset:])
                 result.append(item)
                 offset += item_len
             assert offset == buffer.length()
@@ -196,7 +214,7 @@ class StringMarshal(Packer, Unpacker):
     def pack(self, value):
         return bytearray(str(value).encode(self.encoding))
 
-    def unpack(self, buffer):
+    def unpack(self, ctx, buffer):
         result = str(buffer).decode(self.encoding)
         return result, len(result)
 
@@ -217,7 +235,7 @@ class FillStringMarshal(FillPacker, Unpacker):
             result = result.center(byte_size, self.padding)
         return bytearray(result)
 
-    def unpack(self, buffer):
+    def unpack(self, ctx, buffer):
         value = str(buffer).decode(self.encoding)
         if self.justify == 'left':
             value = value.rstrip(self.padding)
@@ -235,7 +253,7 @@ class BufferMarshal(Packer, Unpacker):
     def pack(self, value):
         return value.pack()
 
-    def unpack(self, buffer):
+    def unpack(self, ctx, buffer):
         item = self.buffer_cls()
         size = item.unpack(buffer)
         return item, size
@@ -265,7 +283,7 @@ class FillPackerReference(Reference):
     def __init__(self, packer, byte_size_ref, value_ref):
         assert value_ref is not None
         self.packer = packer
-        self.byte_size_ref = self.byte_size_ref
+        self.byte_size_ref = byte_size_ref
         self.value_ref = value_ref
 
     def evaluate(self, ctx):
@@ -293,9 +311,10 @@ class UnpackerReference(Reference):
     def evaluate(self, ctx):
         buffer = ctx.input_buffer.get(self.absolute_position_ref(ctx))
         try:
-            return self.unpacker.unpack(buffer)[0]
+            value, byte_size = self.unpacker.unpack(ctx, buffer)
+            return value
         except:
-            raise UnpackError(self, buffer)
+            raise exceptools.chain(UnpackError(self, buffer))
 
     def __safe_repr__(self):
         return "{0!r}_unpack({1!r})".format(self.unpacker, self.absolute_position_ref)

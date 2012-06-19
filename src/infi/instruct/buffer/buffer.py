@@ -127,6 +127,7 @@ class FieldReference(Reference):
     unpack_ref = None
     pack_absolute_position_ref = None
     unpack_absolute_position_ref = None
+    unpack_after = None
 
     def init(self, name):
         self.attr_name_ref.obj = name
@@ -185,7 +186,8 @@ class BufferType(type):
         positions = SequentialRangeList()
         for field in fields: # we avoid list comprehension here so we'll know which field raised an error
             try:
-                if not (field.pack_absolute_position_ref.is_static() and field.unpack_absolute_position_ref.is_static()):
+                if not (field.pack_absolute_position_ref.is_static()
+                        and field.unpack_absolute_position_ref.is_static()):
                     return None
                 positions.extend(field.pack_absolute_position_ref(ctx))
             except:
@@ -201,7 +203,7 @@ class Buffer(object):
 
     def pack(self):
         """Packs the object and returns a buffer representing the packed object."""
-        fields = type(self).__fields__
+        fields = self._all_fields()
         ctx = PackContext(self, fields)
 
         for field in fields:
@@ -214,11 +216,13 @@ class Buffer(object):
 
     def unpack(self, buffer):
         """Unpacks the object's fields from buffer."""
-        fields = type(self).__fields__
+        fields = self._all_fields()
         ctx = UnpackContext(self, fields, buffer)
 
         for field in fields:
             try:
+                for prev_field in field.unpack_after:
+                    prev_field.unpack_value_ref(ctx)
                 field.unpack_value_ref(ctx)
             except:
                 raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
@@ -230,6 +234,13 @@ class Buffer(object):
         Returns this instance's size. If the size has to be calculated it may require packing some of the fields.
         """
         return TotalSizeReference()(PackContext(self, type(self).__fields__))
+
+    def _all_fields(self):
+        fields = []
+        for cls in type(self).mro():
+            cls_fields = getattr(cls, '__fields__', [])
+            fields.extend(cls_fields)
+        return fields
 
     def __repr__(self):
         fields = type(self).__fields__

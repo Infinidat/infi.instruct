@@ -179,9 +179,25 @@ class IOBufferTestCase(TestCase):
         ba2 = self._create_random_bit_array()
         bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=float(ba1.length()) / 8)
         bv2 = BitView(self._bitarray_to_bytes(ba2), stop=float(ba2.length()) / 8)
+        print("ba1={0!r}, ba2={1!r} bv1={2!r}, bv2={3!r}".format(ba1, ba2, bv1, bv2))
         ba1 += ba2
         bv1 += bv2
         self.assertEqualBitArrayBitView(ba1, bv1)
+
+    def test_iadd_1(self):
+        a = bytearray(b'\xd3\x94Q`\xb1\x93\x17\xed\xb2W\xa5\x00')
+        b = bytearray(b'MK\xa3Li\xf9>\x039')
+        bv1 = BitAwareByteArray(bytearray(a), start=0, stop=11.125)
+        bv2 = BitView(bytearray(b), start=0, stop=8.75)
+        bv1 += bv2
+
+        a[-1] &= 0x01
+        a[-1] |= (b[0] & 0x7F) << 1
+
+        for i in xrange(len(b) - 1):
+            a.append((b[i] >> 7) + ((b[i + 1] & 0x7F) << 1))
+
+        self.assertEquals(list(bv1), list(a))
 
     def test_insert_zeros(self):
         bv = BitAwareByteArray(bytearray(1), 0, 0.5)

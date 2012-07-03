@@ -143,12 +143,20 @@ class StructType(type):
     @classmethod
     def _create_struct_class_init(cls, new_cls, user_init):
         def __instance_init__(self, *args, **kwargs):
+            orig_kwargs = kwargs.copy()
             if type(self) == new_cls:
                 # Only do our magic if we're the bottom-most class.
                 new_cls._container_.prepare_instance(self, args, kwargs)
             if user_init is None:
                 super(new_cls, self).__init__(*args, **kwargs)
             else:
+                # Add arguments back if the user code wants them.
+                # This solves STORAGEMODEL-146, because ASI defines Read10Command(logical_block_address, ...)
+                # and logical_block_address is also a field in the struct, so in this scenario instruct will
+                # "eat" the arg and we need to put it back.
+                for arg in user_init.func_code.co_varnames[0:user_init.func_code.co_argcount]:
+                    if arg in orig_kwargs:
+                        kwargs[arg] = orig_kwargs[arg]
                 user_init(self, *args, **kwargs)
         return __instance_init__
 

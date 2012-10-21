@@ -15,3 +15,15 @@ Some of the things you gain by using Instruct:
  * Help with instance construction. You can set default values to fields, set values on construction and write your own constructor.
  * Object sizing. You can determine how many bytes an instance will occupy when serializing, or estimate the number of bytes a class will take.
  * Nice representation. No more writing your own ``__repr__`` implementation.
+
+Checking out the code
+=====================
+
+This project uses buildout and infi-projector, and git to generate setup.py and __version__.py.
+In order to generate these, first get infi-projector:
+
+    easy_install infi.projector
+
+    and then run in the project directory:
+
+        projector devenv build

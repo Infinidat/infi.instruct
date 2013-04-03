@@ -1,8 +1,8 @@
 from .range import SequentialRangeList, ByteRangeFactory
 from .reference import Reference, Context, ContextGetAttrReference, ObjectReference
 from .reference import GetAttrReference, SetAndGetAttrReference, NumericSetAndGetAttrReference
-from .reference import NumericFuncCallReference, NumericGetAttrReference
-from .buffer import Buffer, BufferType, FieldReference, NumericFieldReference
+from .reference import FuncCallReference, NumericFuncCallReference, NumericGetAttrReference
+from .buffer import BufferType, FieldReference, NumericFieldReference
 from .buffer import PackAbsolutePositionReference, UnpackAbsolutePositionReference
 from .buffer import TotalSizeReference
 from .serialize import FillPacker, Packer, Unpacker, IntMarshal, FloatMarshal, INT_MARSHALS, FLOAT_MARSHALS
@@ -11,8 +11,8 @@ from .serialize import Int8Marshal, Int16Marshal, Int32Marshal, Int64Marshal, Fl
 from .serialize import BitIntMarshal, ListPacker, ListUnpacker
 from .serialize import PackerReference, UnpackerReference, FillPackerReference
 
-__all__ = [ 'int8', 'int16', 'int32', 'int64', 'float32', 'float64', 'bytes_ref', 'total_size',
-            'int_field', 'float_field', 'str_field', 'buffer_field', 'list_field' ]
+__all__ = ['int8', 'int16', 'int32', 'int64', 'float32', 'float64', 'bytes_ref', 'total_size',
+           'int_field', 'float_field', 'str_field', 'buffer_field', 'list_field']
 ENDIAN = ('little', 'big', 'native')
 SIGN = ('signed', 'unsigned')
 JUSTIFY = ('left', 'right')
@@ -25,6 +25,7 @@ float32 = Float32Marshal
 float64 = Float64Marshal
 bytes_ref = ByteRangeFactory()
 total_size = TotalSizeReference()
+
 
 class FieldReferenceBuilder(object):
     def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack,
@@ -140,12 +141,13 @@ class FieldReferenceBuilder(object):
         if self.unpack_after is None:
             self.unpack_after = []
         elif not isinstance(self.unpack_after, (list, tuple)):
-            self.unpack_after = [ self.unpack_after ]
+            self.unpack_after = [self.unpack_after]
 
         for unpack_after_field in self.unpack_after:
             assert isinstance(unpack_after_field, FieldReference)
 
         field.unpack_after = self.unpack_after
+
 
 class SelectorDecoratorUnpacker(Unpacker):
     def __init__(self, selector):
@@ -168,6 +170,7 @@ class SelectorDecoratorUnpacker(Unpacker):
 
     def __repr__(self):
         return "{0}".format(self.selector)
+
 
 def int_field(endian='little', sign='unsigned',
               set_before_pack=None,
@@ -207,6 +210,7 @@ def int_field(endian='little', sign='unsigned',
 
     return builder.create()
 
+
 def float_field(size=None, endian='little',
                 set_before_pack=None,
                 set_after_unpack=None,
@@ -237,6 +241,7 @@ def float_field(size=None, endian='little',
 
     return builder.create()
 
+
 def str_field(encoding='ascii', pad_char=' ', justify='left',
               set_before_pack=None,
               set_after_unpack=None,
@@ -264,6 +269,7 @@ def str_field(encoding='ascii', pad_char=' ', justify='left',
 
     return builder.create()
 
+
 def buffer_field(type,
                  unpack_selector=None,
                  set_before_pack=None,
@@ -290,6 +296,7 @@ def buffer_field(type,
         builder.set_unpacker(marshal)
 
     return builder.create()
+
 
 def list_field(type, n=None, unpack_selector=None,
                set_before_pack=None,

@@ -12,7 +12,7 @@ from .serialize import BitIntMarshal, ListPacker, ListUnpacker
 from .serialize import PackerReference, UnpackerReference, FillPackerReference
 
 __all__ = ['int8', 'int16', 'int32', 'int64', 'float32', 'float64', 'bytes_ref', 'total_size',
-           'int_field', 'float_field', 'str_field', 'buffer_field', 'list_field']
+           'int_field', 'float_field', 'str_field', 'buffer_field', 'list_field', 'be_int_field', 'le_int_field']
 ENDIAN = ('little', 'big', 'native')
 SIGN = ('signed', 'unsigned')
 JUSTIFY = ('left', 'right')
@@ -209,6 +209,16 @@ def int_field(endian='little', sign='unsigned',
         builder.set_unpacker(IntMarshal(sign, endian))
 
     return builder.create()
+
+
+def be_int_field(*args, **kwargs):
+    kwargs.update(dict(endian='big'))
+    return int_field(*args, **kwargs)
+
+
+def le_int_field(*args, **kwargs):
+    kwargs.update(dict(endian='little'))
+    return int_field(*args, **kwargs)
 
 
 def float_field(size=None, endian='little',

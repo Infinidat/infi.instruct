@@ -1,25 +1,25 @@
-import sys
 import struct
-import functools
 from infi import exceptools
 
-from .reference import Reference, NumericReference, Context
-from .buffer import PackContext, UnpackContext
-from .io_buffer import InputBuffer, BitAwareByteArray
-from .range import SequentialRange
+from .reference import Reference
+from .io_buffer import BitAwareByteArray
 
-from ..utils import format_exception
 from ..errors import InstructError
+
 
 class PackError(InstructError):
     MESSAGE = "{pack_ref!r} failed to pack {value!r}."
+
     def __init__(self, pack_ref, value):
         super(PackError, self).__init__(PackError.MESSAGE.format(pack_ref=pack_ref, value=value))
 
+
 class UnpackError(InstructError):
     MESSAGE = "{unpack_ref!r} failed to pack {buffer!r}."
+
     def __init__(self, unpack_ref, buffer):
         super(UnpackError, self).__init__(UnpackError.MESSAGE.format(unpack_ref=unpack_ref, buffer=buffer))
+
 
 class Packer(object):
     byte_size = None
@@ -27,11 +27,13 @@ class Packer(object):
     def pack(self, object):
         raise NotImplementedError()
 
+
 class FillPacker(object):
     byte_size = None
 
     def pack(self, object, byte_size):
         raise NotImplementedError()
+
 
 class Unpacker(object):
     byte_size = None
@@ -39,8 +41,11 @@ class Unpacker(object):
     def unpack(self, ctx, buffer):
         raise NotImplementedError()
 
-ENDIAN_NAME_TO_FORMAT = { 'unspecified': '@', 'native': '=', 'big': '>', 'little': '<' }
+
+ENDIAN_NAME_TO_FORMAT = {'unspecified': '@', 'native': '=', 'big': '>', 'little': '<'}
+
 SIGN_NAMES = ("signed", "unsigned")
+
 
 class NumberMarshal(Packer, Unpacker):
     struct_format = None
@@ -63,6 +68,7 @@ class NumberMarshal(Packer, Unpacker):
     def __repr__(self):
         return "{0}_int{1}_{2}_endian".format(self.sign_name, self.byte_size * 8, self.endian_name)
 
+
 class BitIntMarshal(Packer, Unpacker):
     def __init__(self, byte_size):
         self.byte_size = byte_size
@@ -75,21 +81,26 @@ class BitIntMarshal(Packer, Unpacker):
     def unpack(self, ctx, buffer):
         return buffer[0:self.byte_size][0], self.byte_size
 
+
 class Int8Marshal(NumberMarshal):
     byte_size = 1
     struct_format = "b"
+
 
 class Int16Marshal(NumberMarshal):
     byte_size = 2
     struct_format = "h"
 
+
 class Int32Marshal(NumberMarshal):
     byte_size = 4
     struct_format = "l"
 
+
 class Int64Marshal(NumberMarshal):
     byte_size = 8
     struct_format = "q"
+
 
 class Float32Marshal(NumberMarshal):
     byte_size = 4
@@ -101,6 +112,7 @@ class Float32Marshal(NumberMarshal):
     def __repr__(self):
         return "float32_{0}_endian".format(self.endian_name)
 
+
 class Float64Marshal(NumberMarshal):
     byte_size = 8
     struct_format = "d"
@@ -111,7 +123,10 @@ class Float64Marshal(NumberMarshal):
     def __repr__(self):
         return "float64_{0}_endian".format(self.endian_name)
 
-INT_MARSHALS = { 1: Int8Marshal, 2: Int16Marshal, 4: Int32Marshal, 8: Int64Marshal }
+
+INT_MARSHALS = {1: Int8Marshal, 2: Int16Marshal, 4: Int32Marshal, 8: Int64Marshal}
+
+
 class IntMarshal(FillPacker, Unpacker):
     def __init__(self, sign_name="unsigned", endian_name="unspecified"):
         assert sign_name in SIGN_NAMES
@@ -127,7 +142,7 @@ class IntMarshal(FillPacker, Unpacker):
         return marshal.pack(value)
 
     def unpack(self, ctx, buffer):
-        if byte_size < 1:
+        if self.byte_size < 1:
             marshal = BitIntMarshal(buffer.length())
         else:
             marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, buffer.length())
@@ -140,7 +155,10 @@ class IntMarshal(FillPacker, Unpacker):
     def create_size_specific_marshal(cls, sign_name, endian_name, byte_size):
         return INT_MARSHALS[byte_size](sign_name, endian_name)
 
-FLOAT_MARSHALS = { 4: Float32Marshal, 8: Float64Marshal }
+
+FLOAT_MARSHALS = {4: Float32Marshal, 8: Float64Marshal}
+
+
 class FloatMarshal(IntMarshal):
     def __init__(self, endian_name="unspecified"):
         super(FloatMarshal, self).__init__("signed", endian_name)
@@ -152,6 +170,7 @@ class FloatMarshal(IntMarshal):
     def create_size_specific_marshal(cls, sign_name, endian_name, byte_size):
         assert sign_name == "signed"
         return FLOAT_MARSHALS[byte_size](endian_name)
+
 
 class ListPacker(Packer):
     def __init__(self, item_packer, n_items=None):
@@ -172,6 +191,7 @@ class ListPacker(Packer):
 
     def __repr__(self):
         return "{0!r}_list{1}".format(self.item_packer, "[%d]" % (self.n_items,) if self.n_items is not None else "")
+
 
 class ListUnpacker(Unpacker):
     def __init__(self, item_unpacker, n_items=None):
@@ -207,6 +227,7 @@ class ListUnpacker(Unpacker):
     def __repr__(self):
         return "{0!r}_list{1}".format(self.item_packer, "[%d]" % (self.n_items,) if self.n_items is not None else "")
 
+
 class StringMarshal(Packer, Unpacker):
     def __init__(self, encoding='ascii'):
         self.encoding = encoding
@@ -218,7 +239,10 @@ class StringMarshal(Packer, Unpacker):
         result = str(buffer).decode(self.encoding)
         return result, len(result)
 
+
 JUSTIFY_OPTIONS = ('left', 'right', 'center')
+
+
 class FillStringMarshal(FillPacker, Unpacker):
     def __init__(self, justify='left', padding='\x00', encoding='ascii'):
         self.justify = justify
@@ -231,7 +255,7 @@ class FillStringMarshal(FillPacker, Unpacker):
             result = result.ljust(byte_size, self.padding)
         elif self.justify == 'right':
             result = result.rjust(byte_size, self.padding)
-        else: # center
+        else:  # center
             result = result.center(byte_size, self.padding)
         return bytearray(result)
 
@@ -241,9 +265,10 @@ class FillStringMarshal(FillPacker, Unpacker):
             value = value.rstrip(self.padding)
         elif self.justify == 'right':
             value = value.lstrip(self.padding)
-        else: # center
+        else:  # center
             value = value.strip(self.padding)
         return value, len(value)
+
 
 class BufferMarshal(Packer, Unpacker):
     def __init__(self, buffer_cls):
@@ -257,6 +282,7 @@ class BufferMarshal(Packer, Unpacker):
         item = self.buffer_cls()
         size = item.unpack(buffer)
         return item, size
+
 
 class PackerReference(Reference):
     byte_size = None
@@ -277,6 +303,7 @@ class PackerReference(Reference):
     def __safe_repr__(self):
         return "{0!r}_pack({1!r})".format(self.packer, self.value_ref)
 
+
 class FillPackerReference(Reference):
     byte_size = None
 
@@ -296,6 +323,7 @@ class FillPackerReference(Reference):
 
     def __safe_repr__(self):
         return "{0!r}_pack({1!r}, {2!r})".format(self.packer, self.value_ref, self.byte_size_ref)
+
 
 class UnpackerReference(Reference):
     byte_size = None

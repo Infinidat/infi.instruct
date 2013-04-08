@@ -246,13 +246,19 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
             value = bytearray(value)
             value_len = len(value)
         elif isinstance(value, int):
-            # Short circuit: make bit ranges accept int values if their len <= 8
-            value_len = min(1, int_value_len)
-            if value.bit_length() > value_len * 8:
+            # Short circuit: make bit ranges accept int values by their bit length.
+            bit_length = max(1, value.bit_length())
+            if bit_length > int_value_len * 8:
                 # Safety measure for short circuit: if user is assigning an int with more bits than the range of
                 # bits that he specified we shout.
-                raise ValueError("trying to assign int {0} to bit length {1}".format(value, value_len))
-            value = [value]
+                raise ValueError("trying to assign int {0} with bit length {1} to bit length {2}".format(value,
+                                 bit_length, 8 * value_len))
+            l = []
+            for n in range(0, bit_length, 8):
+                l.append(value % 256)
+                value /= 256
+            value = l
+            value_len = max(float(bit_length) / 8, int_value_len)
         else:
             raise TypeError("value must be iterable or int")
         return value, value_len

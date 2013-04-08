@@ -1,11 +1,11 @@
 import struct
 from bitarray import bitarray
 from infi.unittest import TestCase
-from infi.instruct.buffer.reference import CyclicReferenceError
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
-from infi.instruct.buffer.macros import int_field, float_field, str_field, buffer_field, list_field
+from infi.instruct.buffer.macros import int_field, str_field, buffer_field, list_field
 from infi.instruct.buffer.macros import bytes_ref, total_size, int32
 from infi.exceptools import *
+
 
 class BufferTestCase(TestCase):
     def test_buffer_pack_unpack__varsize_string(self):
@@ -79,6 +79,22 @@ class BufferTestCase(TestCase):
                 ba[i * 2 * 8 + 4:i * 2 * 8 + 4 + 8] = b
             self.assertEqual(ba.tobytes(), packed_value)
 
+    def test_buffer_bits__partial(self):
+        class Foo(Buffer):
+            f_int = int_field(where=(bytes_ref[0] + bytes_ref[1].bits[0:4]))
+
+        class Foo2(Buffer):
+            f_int = int_field(where=(bytes_ref[1].bits[0:4] + bytes_ref[0]))
+
+        self.assertEqual(1.5, Foo.byte_size)
+        foo = Foo()
+        foo.f_int = 0xcff
+        self.assertEquals(foo.pack(), b"\xff\x0c")
+
+        foo = Foo2()
+        foo.f_int = 0xcff
+        self.assertEquals(foo.pack(), b"\xcf\x0f")
+
     def test_buffer_size__static(self):
         class Bar(Buffer):
             f_bar_i = int_field(where=bytes_ref[0:4])
@@ -151,22 +167,22 @@ class BufferTestCase(TestCase):
             f_int_array = list_field(where=bytes_ref[0:12], type=int32("unsigned", "native"))
 
         foo = Foo()
-        foo.f_int_array = [ 1, 2, 3 ]
+        foo.f_int_array = [1, 2, 3]
         self.assertEqual(struct.pack("=LLL", *foo.f_int_array), foo.pack())
         foo.f_int_array = None
         foo.unpack(struct.pack("=LLLL", 1, 2, 2, 4))
-        self.assertEqual([ 1, 2, 2 ], foo.f_int_array)
+        self.assertEqual([1, 2, 2], foo.f_int_array)
 
     def test_buffer_pack_unpack__fixed_size_list2(self):
         class Foo(Buffer):
             f_int_array = list_field(where=bytes_ref[0:], type=int32("unsigned", "native"))
 
         foo = Foo()
-        foo.f_int_array = [ 1, 2, 3, 4, 5 ]
+        foo.f_int_array = [1, 2, 3, 4, 5]
         self.assertEqual(struct.pack("=LLLLL", *foo.f_int_array), foo.pack())
         foo.f_int_array = None
         foo.unpack(struct.pack("=LLLL", 1, 2, 2, 4))
-        self.assertEqual([ 1, 2, 2, 4 ], foo.f_int_array)
+        self.assertEqual([1, 2, 2, 4], foo.f_int_array)
 
     def test_buffer_total_size(self):
         class Foo(Buffer):
@@ -312,19 +328,19 @@ class BufferTestCase(TestCase):
 
         foo = Foo()
         foo.f_select = 0
-        foo.f_list = [ Bar(1), Bar(2), Bar(3) ]
+        foo.f_list = [Bar(1), Bar(2), Bar(3)]
         self.assertEquals(struct.pack("=LLLL", 0, 1, 2, 3), foo.pack())
 
         foo.f_select = 1
-        foo.f_list = [ Bar2(1, 2), Bar2(3, 4), Bar2(5, 6) ]
+        foo.f_list = [Bar2(1, 2), Bar2(3, 4), Bar2(5, 6)]
         self.assertEquals(struct.pack("=LLLLLLL", 1, 1, 2, 3, 4, 5, 6), foo.pack())
 
         foo = Foo()
         foo.unpack(struct.pack("=LLL", 0, 13, 31))
         self.assertEquals(0, foo.f_select)
-        self.assertEquals([ Bar(13), Bar(31) ], foo.f_list)
+        self.assertEquals([Bar(13), Bar(31)], foo.f_list)
 
         foo = Foo()
         foo.unpack(struct.pack("=LLLLLLL", 1, 13, 31, 12, 21, 45, 54))
         self.assertEquals(1, foo.f_select)
-        self.assertEquals([ Bar2(13, 31), Bar2(12, 21), Bar2(45, 54) ], foo.f_list)
+        self.assertEquals([Bar2(13, 31), Bar2(12, 21), Bar2(45, 54)], foo.f_list)

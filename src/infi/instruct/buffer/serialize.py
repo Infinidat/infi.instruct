@@ -1,3 +1,4 @@
+import math
 import struct
 from infi import exceptools
 
@@ -74,7 +75,7 @@ class BitIntMarshal(Packer, Unpacker):
         self.byte_size = byte_size
 
     def pack(self, value):
-        result = BitAwareByteArray(bytearray(1), 0, self.byte_size)
+        result = BitAwareByteArray(bytearray(int(math.ceil(self.byte_size))), 0, self.byte_size)
         result[0:] = value
         return result
 
@@ -135,14 +136,14 @@ class IntMarshal(FillPacker, Unpacker):
         self.endian_name = endian_name
 
     def pack(self, value, byte_size):
-        if byte_size < 1:
+        if byte_size < 1 or int(byte_size) != byte_size:
             marshal = BitIntMarshal(byte_size)
         else:
             marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, byte_size)
         return marshal.pack(value)
 
     def unpack(self, ctx, buffer):
-        if self.byte_size < 1:
+        if self.byte_size < 1 or int(self.byte_size) != self.byte_size:
             marshal = BitIntMarshal(buffer.length())
         else:
             marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, buffer.length())

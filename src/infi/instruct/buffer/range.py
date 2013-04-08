@@ -6,6 +6,7 @@ from .reference import Reference, NumericReference
 
 BIT = 0.125
 
+
 @functools.total_ordering
 class SequentialRange(object):
     """
@@ -48,12 +49,13 @@ class SequentialRange(object):
         return "SequentialRange(start={0!r}, stop={1!r})".format(self.start, self.stop)
 
     def overlaps(self, other):
-        a, b = (self, other)  if self.start <= other.start else (other, self)
+        a, b = (self, other) if self.start <= other.start else (other, self)
         a_imag_stop = a.to_closed(sys.maxint).stop
         return a_imag_stop > b.start
 
     def contains(self, point):
         return self.start <= point and (self.stop is None or self.stop > point)
+
 
 class SequentialRangeList(list):
     def byte_length(self):
@@ -105,39 +107,44 @@ class SequentialRangeList(list):
     def __radd__(self, other):
         return SequentialRangeList(super(SequentialRangeList, self).__radd__(other))
 
+
 class RangeReference(Reference):
     def __add__(self, other):
-        me = self.list if isinstance(self, ListRangeReference) else [ self ]
+        me = self.list if isinstance(self, ListRangeReference) else [self]
         if isinstance(other, ListRangeReference):
             return ListRangeReference(me + other.list)
         elif isinstance(other, RangeReference):
-            return ListRangeReference(me + [ other ])
+            return ListRangeReference(me + [other])
         return NotImplemented
 
     def __radd__(self, other):
-        me = self.list if isinstance(self, ListRangeReference) else [ self ]
+        me = self.list if isinstance(self, ListRangeReference) else [self]
         if isinstance(other, ListRangeReference):
             return ListRangeReference(other.list + me)
         elif isinstance(other, Reference):
-            return ListRangeReference( [ other ] + me)
+            return ListRangeReference([other] + me)
         return NotImplemented
+
 
 class ListRangeReference(RangeReference):
     def __init__(self, l):
         super(ListRangeReference, self).__init__()
-        self.list = [ Reference.to_ref(obj) for obj in l ]
+        self.list = [Reference.to_ref(obj) for obj in l]
 
     def evaluate(self, ctx):
-        return SequentialRangeList(reduce(operator.add, [ ref(ctx) for ref in self.list ]))
+        return SequentialRangeList(reduce(operator.add, [ref(ctx) for ref in self.list]))
+
 
 class BitContainer(object):
     def __init__(self):
         self.bits = BitRangeFactory(self)
 
+
 class ByteListRangeReference(BitContainer, ListRangeReference):
     def __init__(self, l):
         BitContainer.__init__(self)
         ListRangeReference.__init__(self, l)
+
 
 class ByteSliceRangeReference(BitContainer, RangeReference):
     def __init__(self, slic):
@@ -153,10 +160,11 @@ class ByteSliceRangeReference(BitContainer, RangeReference):
         self.stop = Reference.to_ref(slic.stop)
 
     def evaluate(self, ctx):
-        return SequentialRangeList([ SequentialRange(self.start(ctx), self.stop(ctx)) ])
+        return SequentialRangeList([SequentialRange(self.start(ctx), self.stop(ctx))])
 
     def __repr__(self):
         return "[{0!r}:{1!r}]".format(self.start, self.stop)
+
 
 class ByteNumericRangeReference(BitContainer, RangeReference):
     def __init__(self, ref):
@@ -167,22 +175,25 @@ class ByteNumericRangeReference(BitContainer, RangeReference):
     def evaluate(self, ctx):
         index = self.ref(ctx)
         assert index >= 0
-        return SequentialRangeList([ SequentialRange(index, index + 1) ])
+        return SequentialRangeList([SequentialRange(index, index + 1)])
+
 
 class ByteRangeFactory(object):
     def __getitem__(self, loc):
         if isinstance(loc, (tuple, list)):
-            return ByteListRangeReference([ self.__getitem__(loc_elem) for loc_elem in loc ])
+            return ByteListRangeReference([self.__getitem__(loc_elem) for loc_elem in loc])
         if isinstance(loc, slice):
             return ByteSliceRangeReference(loc)
         if isinstance(loc, (NumericReference, int, long)):
             return ByteNumericRangeReference(loc)
         raise TypeError("{0} is not a supported index type".format(repr(loc)))
 
+
 class BitRangeReference(RangeReference):
     def __init__(self, parent_range_ref):
         super(BitRangeReference, self).__init__()
         self.parent_range_ref = parent_range_ref
+
 
 class BitNumericRangeReference(BitRangeReference):
     def __init__(self, parent_range_ref, ref):
@@ -200,8 +211,9 @@ class BitNumericRangeReference(BitRangeReference):
         if i is None:
             raise ValueError("Bit offset {0} is out of range for range sequence {1!r}".format(self.ref(ctx),
                                                                                               range_list))
-        return SequentialRangeList([ SequentialRange(byte_offset - sum_length + range_list[i].start,
-                                                     byte_offset - sum_length + range_list[i].start + BIT) ])
+        return SequentialRangeList([SequentialRange(byte_offset - sum_length + range_list[i].start,
+                                                    byte_offset - sum_length + range_list[i].start + BIT)])
+
 
 class BitSliceRangeReference(BitRangeReference):
     def __init__(self, parent_range_ref, slic):
@@ -230,7 +242,7 @@ class BitSliceRangeReference(BitRangeReference):
 
         if bit_range.is_open():
             subrange_start = range_list[i].start + bit_range.start - sum_length
-            return SequentialRangeList([ SequentialRange(subrange_start, range_list[i].stop) ] + range_list[i + 1:])
+            return SequentialRangeList([SequentialRange(subrange_start, range_list[i].stop)] + range_list[i + 1:])
 
         bit_range_remaining_len = bit_range.length()
         result = []
@@ -253,13 +265,14 @@ class BitSliceRangeReference(BitRangeReference):
 
         return SequentialRangeList(result)
 
+
 class BitRangeFactory(object):
     def __init__(self, parent_range_ref):
         self.parent_range_ref = parent_range_ref
 
     def __getitem__(self, loc):
         if isinstance(loc, (tuple, list)):
-            return ListRangeReference([ self.__getitem__(loc_elem) for loc_elem in loc ])
+            return ListRangeReference([self.__getitem__(loc_elem) for loc_elem in loc])
         if isinstance(loc, slice):
             return BitSliceRangeReference(self.parent_range_ref, loc)
         if isinstance(loc, (NumericReference, int, long)):

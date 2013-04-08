@@ -1,8 +1,10 @@
 import math
 import collections
 
+
 def float_to_byte_bit_pair(n):
     return (int(n), int((n - int(n)) * 8))
+
 
 class BitView(collections.Sequence):
     """
@@ -21,7 +23,7 @@ class BitView(collections.Sequence):
         if isinstance(buffer, bytearray):
             self.buffer = buffer
         elif isinstance(buffer, (str, unicode)):
-            self.buffer = [ ord(c) for c in buffer ]
+            self.buffer = [ord(c) for c in buffer]
         else:
             self.buffer = buffer
         self.start = start if start is not None else 0
@@ -34,7 +36,7 @@ class BitView(collections.Sequence):
         start, stop = self._key_to_range(key)
         if isinstance(key, slice):
             return self._get_range(start, stop)
-        else: # must be int/float otherwise _key_to_range would raise an error
+        else:  # must be int/float otherwise _key_to_range would raise an error
             return self._get_byte_bits(start, 8)
 
     def __len__(self):
@@ -79,7 +81,7 @@ class BitView(collections.Sequence):
         else:
             cur_byte = self.buffer[byte_ofs]
             next_byte = self.buffer[byte_ofs + 1] if byte_ofs + 1 < len(self.buffer) else 0
-            return (((cur_byte >> bit_ofs) & 0xFF) | ((next_byte << (8 - bit_ofs)) & 0xFF)) &  bit_mask
+            return (((cur_byte >> bit_ofs) & 0xFF) | ((next_byte << (8 - bit_ofs)) & 0xFF)) & bit_mask
 
     def _key_to_range(self, key):
         if isinstance(key, slice):
@@ -99,6 +101,7 @@ class BitView(collections.Sequence):
         length = self.length()
         ofs = max(ofs + length, 0) if ofs < 0 else min(ofs, length)
         return ofs + self.start
+
 
 class BitAwareByteArray(BitView, collections.MutableSequence):
     """
@@ -224,7 +227,7 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
     def _set_byte_bits(self, ofs, bit_len, value):
         byte_ofs, bit_ofs = float_to_byte_bit_pair(ofs)
         if bit_ofs == 0 and bit_len == 8:
-            self.buffer[byte_ofs] = value # shortcut
+            self.buffer[byte_ofs] = value  # shortcut
         elif (bit_ofs + bit_len) <= 8:
             self.buffer[byte_ofs] &= ~(((1 << bit_len) - 1) << bit_ofs)
             self.buffer[byte_ofs] |= (value << bit_ofs) & 0xFF
@@ -243,16 +246,23 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
             value = bytearray(value)
             value_len = len(value)
         elif isinstance(value, int):
-            # Short circuit: make bit ranges accept int values if their len <= 8
-            value_len = min(1, int_value_len)
-            if value.bit_length() > value_len * 8:
+            # Short circuit: make bit ranges accept int values by their bit length.
+            bit_length = max(1, value.bit_length())
+            if bit_length > int_value_len * 8:
                 # Safety measure for short circuit: if user is assigning an int with more bits than the range of
                 # bits that he specified we shout.
-                raise ValueError("trying to assign int {0} to bit length {1}".format(value, value_len))
-            value = [ value ]
+                raise ValueError("trying to assign int {0} with bit length {1} to bit length {2}".format(value,
+                                 bit_length, 8 * value_len))
+            l = []
+            for n in range(0, bit_length, 8):
+                l.append(value % 256)
+                value /= 256
+            value = l
+            value_len = max(float(bit_length) / 8, int_value_len)
         else:
             raise TypeError("value must be iterable or int")
         return value, value_len
+
 
 class InputBuffer(object):
     def __init__(self, buffer):
@@ -271,6 +281,7 @@ class InputBuffer(object):
 
     def __repr__(self):
         return "InputBuffer({0!r})".format(self.buffer)
+
 
 class OutputBuffer(object):
     def __init__(self):

@@ -1,6 +1,4 @@
-from contextlib import contextmanager
 from numbers import Number
-import threading
 import operator
 
 OPERATOR_TO_SYMBOL = {
@@ -8,6 +6,7 @@ OPERATOR_TO_SYMBOL = {
     operator.sub: "-",
     operator.neg: "-"
 }
+
 
 class CyclicReferenceError(Exception):
     """Raised when discovering a cyclic reference."""
@@ -19,9 +18,10 @@ Reference cycle:
 
     def __init__(self, ctx, last_ref):
         # Format the cycle as cycle_ref_1 -->\n cycle_ref_2 -->\n cycle_ref_3 -->\n...
-        cycle = [ "  {0!r}".format(ref) for ref in ctx.call_stack + [ last_ref ] ]
+        cycle = ["  {0!r}".format(ref) for ref in ctx.call_stack + [last_ref]]
         cycle_str = " -->\n".join(cycle)
         super(CyclicReferenceError, self).__init__(CyclicReferenceError.MESSAGE.format(cycle_str=cycle_str))
+
 
 class Context(object):
     """Base class for working with references."""
@@ -33,7 +33,8 @@ class Context(object):
         self.exception_call_stack = None
 
     def format_exception_call_stack(self):
-        return [ repr(line) for line in self.exception_call_stack ] if self.exception_call_stack is not None else []
+        return [repr(line) for line in self.exception_call_stack] if self.exception_call_stack is not None else []
+
 
 class Reference(object):
     """
@@ -110,6 +111,7 @@ class Reference(object):
         except NotStaticObjectError:
             return False
 
+
 class NumericReference(object):
     """
     A numeric reference is a mixin that adds support for arithmetic operators, such as add/sub.
@@ -141,6 +143,7 @@ class NumericReference(object):
 
     # FIXME: add rest of the operators, including unary ones
 
+
 class NumericUnaryExpression(Reference, NumericReference):
     """
     Unary expression support for references, e.g. -ref('field').
@@ -155,6 +158,7 @@ class NumericUnaryExpression(Reference, NumericReference):
     def __safe_repr__(self):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "{0}({1!r})".format(op_sym, self.ref)
+
 
 class NumericBinaryExpression(Reference, NumericReference):
     """
@@ -172,6 +176,7 @@ class NumericBinaryExpression(Reference, NumericReference):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "({0!r} {1} {2!r})".format(self.a, op_sym, self.b)
 
+
 class ObjectReference(Reference):
     """Holds a reference to an object."""
 
@@ -184,32 +189,36 @@ class ObjectReference(Reference):
     def __safe_repr__(self):
         return "ref({0!r})".format(self.obj)
 
+
 class NumberReference(ObjectReference, NumericReference):
     """Holds a reference to an object that we know is also a number."""
 
     def __safe_repr__(self):
         return "num_ref({0!r})".format(self.obj)
 
+
 class FuncCallReference(Reference):
     """Holds a reference to a function call that will get executed when resolving."""
 
     def __init__(self, func, *args):
         self.func_ref = Reference.to_ref(func)
-        self.arg_refs = [ Reference.to_ref(arg) for arg in args ]
+        self.arg_refs = [Reference.to_ref(arg) for arg in args]
 
     def evaluate(self, ctx):
         func = self.func_ref(ctx)
-        args = [ arg_ref(ctx) for arg_ref in self.arg_refs ]
+        args = [arg_ref(ctx) for arg_ref in self.arg_refs]
         return func(*args)
 
     def __safe_repr__(self):
-        return "func_ref({0!r}({1}))".format(self.func_ref, ", ".join([ repr(arg) for arg in self.arg_refs ]))
+        return "func_ref({0!r}({1}))".format(self.func_ref, ", ".join([repr(arg) for arg in self.arg_refs]))
+
 
 class NumericFuncCallReference(FuncCallReference, NumericReference):
     """Holds a reference to a function call that returns a number."""
 
     def __safe_repr__(self):
-        return "num_func_ref({0!r}({1}))".format(self.func_ref, ", ".join([ repr(arg) for arg in self.arg_refs ]))
+        return "num_func_ref({0!r}({1}))".format(self.func_ref, ", ".join([repr(arg) for arg in self.arg_refs]))
+
 
 class LengthFuncCallReference(NumericFuncCallReference):
     """Holds a reference to len(x) function call."""
@@ -220,6 +229,7 @@ class LengthFuncCallReference(NumericFuncCallReference):
     def __safe_repr__(self):
         return "len_ref({0!r})".format(self.arg_refs[0])
 
+
 class GetAttrReference(FuncCallReference):
     """Holds a reference to getattr(object, attr_name) function call."""
 
@@ -229,9 +239,11 @@ class GetAttrReference(FuncCallReference):
     def __safe_repr__(self):
         return "{0!r}.{1!r}".format(*self.arg_refs)
 
+
 class NumericGetAttrReference(GetAttrReference, NumericReference):
     """Holds a reference to getattr(object, attr_name) function call where the attribute is a number."""
     pass
+
 
 class SetAttrReference(FuncCallReference):
     """Holds a reference to setattr(object, attr_name, value) function call."""
@@ -241,6 +253,7 @@ class SetAttrReference(FuncCallReference):
 
     def __safe_repr__(self):
         return "{0!r}.{1!r} = {2!r}".format(*self.arg_refs)
+
 
 class SetAndGetAttrReference(FuncCallReference):
     """Holds a reference to setattr(object, attr_name, value) function call that returns value."""
@@ -252,9 +265,11 @@ class SetAndGetAttrReference(FuncCallReference):
     def __safe_repr__(self):
         return "set {0!r}.{1!r} = {2!r} then return {2!r}".format(*self.arg_refs)
 
+
 class NumericSetAndGetAttrReference(SetAndGetAttrReference, NumericReference):
     """Holds a reference to setattr(object, attr_name, value) function call that returns a numeric value."""
     pass
+
 
 class ReturnContextReference(Reference):
     """A reference that evaluates to the context itself (useful when using FuncCallReference)."""
@@ -264,6 +279,7 @@ class ReturnContextReference(Reference):
 
     def __safe_repr__(self):
         return "ctx"
+
 
 class ContextGetAttrReference(GetAttrReference):
     """A reference that returns an attribute from the context."""

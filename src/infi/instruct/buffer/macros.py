@@ -191,7 +191,7 @@ def int_field(endian='little', sign='unsigned',
                                     unpack_after=unpack_after)
     builder.resolve_static_where()
     if builder.pack_size is not None:
-        if builder.pack_size < 1:
+        if builder.pack_size < 1 or int(builder.pack_size) != builder.pack_size:
             builder.set_packer(BitIntMarshal(builder.pack_size))
         else:
             assert builder.pack_size in INT_MARSHALS
@@ -200,7 +200,7 @@ def int_field(endian='little', sign='unsigned',
         builder.set_packer(IntMarshal(sign, endian))
 
     if builder.unpack_size is not None:
-        if builder.pack_size < 1:
+        if builder.pack_size < 1 or int(builder.unpack_size) != builder.unpack_size:
             builder.set_unpacker(BitIntMarshal(builder.unpack_size))
         else:
             assert builder.unpack_size in INT_MARSHALS

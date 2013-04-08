@@ -1,30 +1,28 @@
-import sys
-import traceback
 import itertools
 
 from infi import exceptools
 from ..errors import InstructError
 
-from .range import SequentialRange, SequentialRangeList
+from .range import SequentialRangeList
 from .reference import Context, Reference, NumericReference
-from .reference import FuncCallReference, NumericFuncCallReference
-from .reference import GetAttrReference, NumericGetAttrReference, ContextGetAttrReference
-from .reference import SetAttrReference, SetAndGetAttrReference, NumericSetAndGetAttrReference, ObjectReference
 from .io_buffer import InputBuffer, OutputBuffer
+
 
 class InstructBufferError(InstructError):
     MESSAGE = """{error_msg} - attribute '{attr_name}' in class '{clazz}':
   Instruct internal call stack:
 {context_call_stack}"""
+
     def __init__(self, error_msg, ctx, clazz, attr_name):
         # Format the context call stack, so it will be clearer.
-        context_call_stack = "\n".join([ "    {0}".format(line) for line in ctx.format_exception_call_stack() ])
+        context_call_stack = "\n".join(["    {0}".format(line) for line in ctx.format_exception_call_stack()])
         msg = type(self).MESSAGE.format(error_msg=error_msg, attr_name=attr_name, clazz=clazz,
                                         context_call_stack=context_call_stack)
         super(InstructBufferError, self).__init__(msg)
 
         self.clazz = clazz
         self.attr_name = attr_name
+
 
 class BufferContext(Context):
     """Base class for buffer context. Contains the object we're packing/unpacking and the list of fields."""
@@ -40,6 +38,7 @@ class BufferContext(Context):
     def is_unpack(self):
         return isinstance(self, UnpackContext)
 
+
 class PackContext(BufferContext):
     """Context used when packing. Contains the object, fields and output buffer."""
 
@@ -47,12 +46,14 @@ class PackContext(BufferContext):
         super(PackContext, self).__init__(obj, fields)
         self.output_buffer = OutputBuffer()
 
+
 class UnpackContext(BufferContext):
     """Context used when unpacking. Contains the object, fields and input buffer."""
 
     def __init__(self, obj, fields, input_buffer):
         super(UnpackContext, self).__init__(obj, fields)
         self.input_buffer = InputBuffer(input_buffer)
+
 
 class TotalSizeReference(Reference, NumericReference):
     def evaluate(self, ctx):
@@ -62,16 +63,17 @@ class TotalSizeReference(Reference, NumericReference):
             return size
 
         if ctx.is_pack():
-            lists = [ field.pack_absolute_position_ref(ctx) for field in ctx.fields ]
+            lists = [field.pack_absolute_position_ref(ctx) for field in ctx.fields]
         else:
-            lists = [ field.unpack_absolute_position_ref(ctx) for field in ctx.fields ]
+            lists = [field.unpack_absolute_position_ref(ctx) for field in ctx.fields]
         positions = SequentialRangeList(itertools.chain(*lists))
-        result = positions.max_stop() # total_size calculation
+        result = positions.max_stop()  # total_size calculation
         assert result is not None
         return result
 
     def __safe_repr__(self):
         return "total_size"
+
 
 class PackAbsolutePositionReference(Reference):
     def __init__(self, field, pack_position_ref):
@@ -100,6 +102,7 @@ class PackAbsolutePositionReference(Reference):
     def __safe_repr__(self):
         return "abs_position({0!r})".format(self.field)
 
+
 class UnpackAbsolutePositionReference(Reference):
     def __init__(self, field, unpack_position_ref):
         self.field = field
@@ -118,6 +121,7 @@ class UnpackAbsolutePositionReference(Reference):
 
     def __safe_repr__(self):
         return "abs_position({0!r})".format(self.field)
+
 
 class FieldReference(Reference):
     attr_name_ref = None
@@ -147,9 +151,11 @@ class FieldReference(Reference):
     def __safe_repr__(self):
         return "field_ref({0!r})".format(self.attr_name_ref.obj)
 
+
 class NumericFieldReference(FieldReference, NumericReference):
     def __safe_repr__(self):
         return "num_field_ref({0!r})".format(self.attr_name_ref.obj)
+
 
 class BufferType(type):
     def __new__(cls, name, bases, attrs):
@@ -184,7 +190,7 @@ class BufferType(type):
     def calc_byte_size(cls, class_name, fields):
         ctx = PackContext(None, fields)
         positions = SequentialRangeList()
-        for field in fields: # we avoid list comprehension here so we'll know which field raised an error
+        for field in fields:  # we avoid list comprehension here so we'll know which field raised an error
             try:
                 if not (field.pack_absolute_position_ref.is_static()
                         and field.unpack_absolute_position_ref.is_static()):
@@ -194,6 +200,7 @@ class BufferType(type):
                 raise exceptools.chain(InstructBufferError("Error while calculating static byte size", ctx,
                                                            class_name, field.attr_name()))
         return positions.max_stop()
+
 
 class Buffer(object):
     __metaclass__ = BufferType
@@ -244,5 +251,5 @@ class Buffer(object):
 
     def __repr__(self):
         fields = type(self).__fields__
-        repr_fields = [ "{0}={1!r}".format(field.attr_name(), getattr(self, field.attr_name())) for field in fields ]
+        repr_fields = ["{0}={1!r}".format(field.attr_name(), getattr(self, field.attr_name())) for field in fields]
         return "{0}.{1}({2})".format(type(self).__module__, type(self).__name__, ", ".join(repr_fields))

@@ -8,6 +8,14 @@ OPERATOR_TO_SYMBOL = {
 }
 
 
+def safe_repr(obj):
+    try:
+        obj_repr = repr(obj)
+    except:
+        obj_repr = "({0}<{1}> repr error)".format(type(obj), id(obj))
+    return obj_repr
+
+
 class CyclicReferenceError(Exception):
     """Raised when discovering a cyclic reference."""
 
@@ -215,16 +223,16 @@ class FuncCallReference(Reference):
         return "func_ref({0})".format(self._func_repr())
 
     def _func_repr(self):
-        return "{0!r}({1}))".format(self.func_ref, self._args_and_kwargs_repr())
+        return "{0}({1}))".format(safe_repr(self.func_ref), self._args_and_kwargs_repr())
 
     def _args_and_kwargs_repr(self):
-        return ", ".join(self._args_repr(), self._kwargs_repr())
+        return ", ".join((self._args_repr(), self._kwargs_repr()))
 
     def _args_repr(self):
-        return ", ".join(repr(arg) for arg in self.arg_refs)
+        return ", ".join(safe_repr(arg) for arg in self.arg_refs)
 
     def _kwargs_repr(self):
-        return ", ".join("{0}={1!r}".format(k, v_ref) for k, v_ref in self.kwarg_refs.items())
+        return ", ".join("{0}={1}".format(k, safe_repr(v_ref)) for k, v_ref in self.kwarg_refs.items())
 
 
 class NumericFuncCallReference(FuncCallReference, NumericReference):

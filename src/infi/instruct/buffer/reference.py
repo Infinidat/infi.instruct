@@ -200,24 +200,38 @@ class NumberReference(ObjectReference, NumericReference):
 class FuncCallReference(Reference):
     """Holds a reference to a function call that will get executed when resolving."""
 
-    def __init__(self, func, *args):
+    def __init__(self, func, *args, **kwargs):
         self.func_ref = Reference.to_ref(func)
         self.arg_refs = [Reference.to_ref(arg) for arg in args]
+        self.kwarg_refs = dict((k, Reference.to_ref(v)) for k, v in kwargs.items())
 
     def evaluate(self, ctx):
         func = self.func_ref(ctx)
         args = [arg_ref(ctx) for arg_ref in self.arg_refs]
-        return func(*args)
+        kwargs = dict((k, v_ref(ctx)) for k, v_ref in self.kwarg_refs.items())
+        return func(*args, **kwargs)
 
     def __safe_repr__(self):
-        return "func_ref({0!r}({1}))".format(self.func_ref, ", ".join([repr(arg) for arg in self.arg_refs]))
+        return "func_ref({0})".format(self._func_repr())
+
+    def _func_repr(self):
+        return "{0!r}({1}))".format(self.func_ref, self._args_and_kwargs_repr())
+
+    def _args_and_kwargs_repr(self):
+        return ", ".join(self._args_repr(), self._kwargs_repr())
+
+    def _args_repr(self):
+        return ", ".join(repr(arg) for arg in self.arg_refs)
+
+    def _kwargs_repr(self):
+        return ", ".join("{0}={1!r}".format(k, v_ref) for k, v_ref in self.kwarg_refs.items())
 
 
 class NumericFuncCallReference(FuncCallReference, NumericReference):
     """Holds a reference to a function call that returns a number."""
 
     def __safe_repr__(self):
-        return "num_func_ref({0!r}({1}))".format(self.func_ref, ", ".join([repr(arg) for arg in self.arg_refs]))
+        return "num_func_ref({0})".format(self._func_repr())
 
 
 class LengthFuncCallReference(NumericFuncCallReference):

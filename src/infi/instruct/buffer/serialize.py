@@ -1,11 +1,30 @@
 import math
 import struct
-from infi import exceptools
 
-from .reference import Reference
 from .io_buffer import BitAwareByteArray
+from .buffer import BufferType
 
 from ..errors import InstructError
+from ..utils.kwargs import (copy_defaults_and_override_with_kwargs, assert_kwarg_enum, copy_and_remove_kwargs,
+                            keep_kwargs_partial)
+
+
+def kwargs_fractional_byte_size(kwargs):
+    byte_size = kwargs.get("byte_size", None)
+    assert byte_size is None or ((byte_size > 0) and (int(byte_size * 8) == byte_size * 8)), \
+        "size can be unknown (None) or a positive fraction of 8 but instead got {0}".format(byte_size)
+    return byte_size
+
+
+def kwargs_int_byte_size(kwargs):
+    byte_size = kwargs.get("byte_size", None)
+    assert byte_size is None or ((byte_size > 0) and (int(byte_size) == byte_size)), \
+        "size can be unknown (None) or a positive integer but instead got {0}".format(byte_size)
+    return byte_size
+
+
+def assert_enum_argument(name, value, enum):
+    assert value in enum, "argument {0} with value {1!r} is not one of {2!r}".format(name, value, enum)
 
 
 class PackError(InstructError):
@@ -16,334 +35,244 @@ class PackError(InstructError):
 
 
 class UnpackError(InstructError):
-    MESSAGE = "{unpack_ref!r} failed to pack {buffer!r}."
+    MESSAGE = "{unpack_ref!r} failed to unpack {buffer!r}."
 
     def __init__(self, unpack_ref, buffer):
         super(UnpackError, self).__init__(UnpackError.MESSAGE.format(unpack_ref=unpack_ref, buffer=buffer))
 
 
-class Packer(object):
-    byte_size = None
-
-    def pack(self, object):
-        raise NotImplementedError()
-
-
-class FillPacker(object):
-    byte_size = None
-
-    def pack(self, object, byte_size):
-        raise NotImplementedError()
-
-
-class Unpacker(object):
-    byte_size = None
-
-    def unpack(self, ctx, buffer):
-        raise NotImplementedError()
-
-
 ENDIAN_NAME_TO_FORMAT = {'unspecified': '@', 'native': '=', 'big': '>', 'little': '<'}
 
-SIGN_NAMES = ("signed", "unsigned")
+
+#
+# integer support
+#
 
 
-class NumberMarshal(Packer, Unpacker):
-    struct_format = None
-
-    def __init__(self, sign_name="signed", endian_name="unspecified"):
-        self.sign_name = sign_name
-        self.endian_name = endian_name
-
-        struct_format_char = self.struct_format.lower() if sign_name == "signed" else self.struct_format.upper()
-        self.format = "{0}{1}".format(ENDIAN_NAME_TO_FORMAT[endian_name], struct_format_char)
-
-    def pack(self, value):
-        return struct.pack(self.format, value)
-
-    def unpack(self, ctx, buffer):
-        assert len(buffer) == self.byte_size, "buffer size must be {0} but instead got {1}".format(self.byte_size,
-                                                                                                   len(buffer))
-        return struct.unpack(self.format, str(buffer))[0], self.byte_size
-
-    def __repr__(self):
-        return "{0}_int{1}_{2}_endian".format(self.sign_name, self.byte_size * 8, self.endian_name)
+def pack_bit_int(value, byte_size, **kwargs):
+    assert byte_size is not None
+    result = BitAwareByteArray(bytearray(int(math.ceil(byte_size))), 0, byte_size)
+    result[0:] = value
+    return result
 
 
-class BitIntMarshal(Packer, Unpacker):
-    def __init__(self, byte_size):
-        self.byte_size = byte_size
-
-    def pack(self, value):
-        result = BitAwareByteArray(bytearray(int(math.ceil(self.byte_size))), 0, self.byte_size)
-        result[0:] = value
-        return result
-
-    def unpack(self, ctx, buffer):
-        return buffer[0:self.byte_size][0], self.byte_size
+def format_from_struct_int_arguments(format_char, kwargs):
+    args = copy_defaults_and_override_with_kwargs(dict(sign='signed', endian='native'), kwargs)
+    assert_enum_argument('format_char', format_char, ('b', 'h', 'l', 'q'))
+    assert_kwarg_enum(args, 'sign', ('signed', 'unsigned'))
+    assert_kwarg_enum(args, 'endian', ENDIAN_NAME_TO_FORMAT.keys())
+    format_char = format_char.lower() if args["sign"] == "signed" else format_char.upper()
+    return "{0}{1}".format(ENDIAN_NAME_TO_FORMAT[args["endian"]], format_char)
 
 
-class Int8Marshal(NumberMarshal):
-    byte_size = 1
-    struct_format = "b"
+def pack_struct_int(value, format_char, **kwargs):
+    return struct.pack(format_from_struct_int_arguments(format_char, kwargs), value)
+
+STRUCT_INT_PACKERS = {
+    1: keep_kwargs_partial(pack_struct_int, format_char='b'),
+    2: keep_kwargs_partial(pack_struct_int, format_char='h'),
+    4: keep_kwargs_partial(pack_struct_int, format_char='l'),
+    8: keep_kwargs_partial(pack_struct_int, format_char='q')
+}
 
 
-class Int16Marshal(NumberMarshal):
-    byte_size = 2
-    struct_format = "h"
+def pack_int(value, **kwargs):
+    byte_size = kwargs_fractional_byte_size(kwargs)
+    if byte_size in STRUCT_INT_PACKERS:
+        return STRUCT_INT_PACKERS[byte_size](value, **kwargs)
+    else:
+        byte_size = kwargs.pop("byte_size", float(value.bit_length()) / 8)
+        return pack_bit_int(value, byte_size, **kwargs)
 
 
-class Int32Marshal(NumberMarshal):
-    byte_size = 4
-    struct_format = "l"
+def unpack_bit_int(buffer, byte_size, **kwargs):
+    result = 0
+    for b in buffer[0:byte_size]:
+        result *= 256
+        result += b
+    return result, byte_size
 
 
-class Int64Marshal(NumberMarshal):
-    byte_size = 8
-    struct_format = "q"
+def unpack_struct_int(buffer, format_char, **kwargs):
+    format = format_from_struct_int_arguments(format_char, kwargs)
+    byte_size = struct.calcsize(format)
+    assert len(buffer) >= byte_size, "buffer size must be at least {0} but instead got {1}".format(byte_size, len(buffer))
+    return struct.unpack(format, str(buffer[0:byte_size]))[0], byte_size
+
+STRUCT_INT_UNPACKERS = {
+    1: keep_kwargs_partial(unpack_struct_int, format_char='b'),
+    2: keep_kwargs_partial(unpack_struct_int, format_char='h'),
+    4: keep_kwargs_partial(unpack_struct_int, format_char='l'),
+    8: keep_kwargs_partial(unpack_struct_int, format_char='q')
+}
 
 
-class Float32Marshal(NumberMarshal):
-    byte_size = 4
-    struct_format = "f"
+def unpack_int(buffer, **kwargs):
+    byte_size = kwargs_fractional_byte_size(kwargs)
+    if byte_size in STRUCT_INT_UNPACKERS:
+        return STRUCT_INT_UNPACKERS[byte_size](buffer, **kwargs)
+    else:
+        byte_size = kwargs.pop('byte_size', buffer.length())
+        return unpack_bit_int(buffer, byte_size, **kwargs)
 
-    def __init__(self, endian_name="unspecified"):
-        super(Float32Marshal, self).__init__("signed", endian_name)
-
-    def __repr__(self):
-        return "float32_{0}_endian".format(self.endian_name)
-
-
-class Float64Marshal(NumberMarshal):
-    byte_size = 8
-    struct_format = "d"
-
-    def __init__(self, endian_name="unspecified"):
-        super(Float64Marshal, self).__init__("signed", endian_name)
-
-    def __repr__(self):
-        return "float64_{0}_endian".format(self.endian_name)
+#
+# float support
+#
 
 
-INT_MARSHALS = {1: Int8Marshal, 2: Int16Marshal, 4: Int32Marshal, 8: Int64Marshal}
+def format_from_struct_float_arguments(format_char, kwargs):
+    args = copy_defaults_and_override_with_kwargs(dict(endian='native'), kwargs)
+    assert_enum_argument('format_char', format_char, ('f', 'd'))
+    assert_kwarg_enum(args, 'endian', ENDIAN_NAME_TO_FORMAT.keys())
+    return "{0}{1}".format(ENDIAN_NAME_TO_FORMAT[args["endian"]], format_char)
 
 
-class IntMarshal(FillPacker, Unpacker):
-    def __init__(self, sign_name="unsigned", endian_name="unspecified"):
-        assert sign_name in SIGN_NAMES
-        assert endian_name in ENDIAN_NAME_TO_FORMAT.keys()
-        self.sign_name = sign_name
-        self.endian_name = endian_name
-
-    def pack(self, value, byte_size):
-        if byte_size < 1 or int(byte_size) != byte_size:
-            marshal = BitIntMarshal(byte_size)
-        else:
-            marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, byte_size)
-        return marshal.pack(value)
-
-    def unpack(self, ctx, buffer):
-        if self.byte_size < 1 or int(self.byte_size) != self.byte_size:
-            marshal = BitIntMarshal(buffer.length())
-        else:
-            marshal = type(self).create_size_specific_marshal(self.sign_name, self.endian_name, buffer.length())
-        return marshal.unpack(ctx, buffer)
-
-    def __repr__(self):
-        return "{0}_int_{1}_endian".format(self.sign_name, self.endian_name)
-
-    @classmethod
-    def create_size_specific_marshal(cls, sign_name, endian_name, byte_size):
-        return INT_MARSHALS[byte_size](sign_name, endian_name)
+def pack_struct_float(value, format_char, **kwargs):
+    return struct.pack(format_from_struct_float_arguments(format_char, kwargs), value)
 
 
-FLOAT_MARSHALS = {4: Float32Marshal, 8: Float64Marshal}
+def pack_float(value, **kwargs):
+    byte_size = kwargs_int_byte_size(kwargs)
+    if byte_size is None:
+        byte_size = 4  # by default, we'll choose floats. If someone wants something different, he/she should define it.
+    assert byte_size in STRUCT_FLOAT_PACKERS, "float must have a byte size of 4 or 8 but instead got {0}".format(byte_size)
+    return STRUCT_FLOAT_PACKERS[byte_size](value, **kwargs)
 
 
-class FloatMarshal(IntMarshal):
-    def __init__(self, endian_name="unspecified"):
-        super(FloatMarshal, self).__init__("signed", endian_name)
-
-    def __repr__(self):
-        return "float_{1}_endian".format(self.endian_name)
-
-    @classmethod
-    def create_size_specific_marshal(cls, sign_name, endian_name, byte_size):
-        assert sign_name == "signed"
-        return FLOAT_MARSHALS[byte_size](endian_name)
+STRUCT_FLOAT_PACKERS = {
+    4: keep_kwargs_partial(pack_struct_float, format_char='f'),
+    8: keep_kwargs_partial(pack_struct_float, format_char='q')
+}
 
 
-class ListPacker(Packer):
-    def __init__(self, item_packer, n_items=None):
-        self.item_packer = item_packer
-        self.n_items = n_items
-        if item_packer.byte_size is not None and n_items is not None:
-            self.byte_size = item_packer.byte_size * n_items
-
-    def pack(self, list):
-        assert self.n_items is None or (len(list) == self.n_items)
-
-        result = BitAwareByteArray(bytearray())
-        for item in list:
-            result += self.item_packer.pack(item)
-
-        assert self.byte_size is None or (self.byte_size == result.length())
-        return result
-
-    def __repr__(self):
-        return "{0!r}_list{1}".format(self.item_packer, "[%d]" % (self.n_items,) if self.n_items is not None else "")
+def unpack_struct_float(buffer, format_char, **kwargs):
+    format = format_from_struct_float_arguments(format_char, kwargs)
+    byte_size = struct.calcsize(format)
+    assert len(buffer) >= byte_size, "buffer size must be at least {0} but instead got {1}".format(byte_size, len(buffer))
+    return struct.unpack(format, str(buffer[0:byte_size]))[0], byte_size
 
 
-class ListUnpacker(Unpacker):
-    def __init__(self, item_unpacker, n_items=None):
-        self.item_unpacker = item_unpacker
-        self.n_items = n_items
-        if item_unpacker.byte_size is not None and n_items is not None:
-            self.byte_size = item_unpacker.byte_size * n_items
+def unpack_float(buffer, **kwargs):
+    byte_size = kwargs_int_byte_size(kwargs)
+    if byte_size is None:
+        byte_size = 4  # by default, we'll choose floats. If someone wants something different, he/she should define it.
+    assert byte_size in STRUCT_FLOAT_UNPACKERS, "float must have a byte size of 4 or 8 but instead got {0}".format(byte_size)
+    return STRUCT_FLOAT_UNPACKERS[byte_size](buffer, **kwargs)
 
-    def unpack(self, ctx, buffer):
-        result = []
-        n_items = self.n_items
-        item_len = self.item_unpacker.byte_size
-        if n_items is None and item_len is not None:
-            # We can determine how many elements in the list since we know each element's size.
-            n_items = buffer.length() / item_len
-
-        result = []
-        offset = 0
-        if item_len is not None:
-            for i in xrange(n_items):
-                item, _ = self.item_unpacker.unpack(ctx, buffer[offset:offset + item_len])
-                result.append(item)
-                offset += item_len
-        else:
-            while offset < buffer.length():
-                item, item_len = self.item_unpacker.unpack(ctx, buffer[offset:])
-                result.append(item)
-                offset += item_len
-            assert offset == buffer.length()
-
-        return result, offset
-
-    def __repr__(self):
-        return "{0!r}_list{1}".format(self.item_packer, "[%d]" % (self.n_items,) if self.n_items is not None else "")
+STRUCT_FLOAT_UNPACKERS = {
+    4: keep_kwargs_partial(unpack_struct_float, format_char='f'),
+    8: keep_kwargs_partial(unpack_struct_float, format_char='q')
+}
 
 
-class StringMarshal(Packer, Unpacker):
-    def __init__(self, encoding='ascii'):
-        self.encoding = encoding
-
-    def pack(self, value):
-        return bytearray(str(value).encode(self.encoding))
-
-    def unpack(self, ctx, buffer):
-        result = str(buffer).decode(self.encoding)
-        return result, len(result)
-
-
+#
+# string support
+#
 JUSTIFY_OPTIONS = ('left', 'right', 'center')
 
 
-class FillStringMarshal(FillPacker, Unpacker):
-    def __init__(self, justify='left', padding='\x00', encoding='ascii'):
-        self.justify = justify
-        self.padding = padding
-        self.encoding = encoding
+def str_args_from_kwargs(kwargs):
+    args = copy_defaults_and_override_with_kwargs(dict(encoding='ascii', padding=' ', justify='left'), kwargs)
+    assert_kwarg_enum(args, 'justify', JUSTIFY_OPTIONS)
+    assert len(args['padding']) == 1, "padding must be exactly one character but instead got {0!r}".format(args['padding'])
+    return args
 
-    def pack(self, value, byte_size):
-        result = str(value).encode(self.encoding)
-        if self.justify == 'left':
-            result = result.ljust(byte_size, self.padding)
-        elif self.justify == 'right':
-            result = result.rjust(byte_size, self.padding)
+
+def pack_str(value, **kwargs):
+    args = str_args_from_kwargs(kwargs)
+    justify = args['justify']
+    padding = args['padding']
+    byte_size = kwargs_int_byte_size(args)
+    result = bytearray(str(value).encode(args['encoding']))
+    if byte_size is not None:
+        if justify == 'left':
+            result = result.ljust(byte_size, padding)
+        elif justify == 'right':
+            result = result.rjust(byte_size, padding)
         else:  # center
-            result = result.center(byte_size, self.padding)
-        return bytearray(result)
+            result = result.center(byte_size, padding)
+    return result
 
-    def unpack(self, ctx, buffer):
-        value = str(buffer).decode(self.encoding)
-        if self.justify == 'left':
-            value = value.rstrip(self.padding)
-        elif self.justify == 'right':
-            value = value.lstrip(self.padding)
+
+def unpack_str(buffer, **kwargs):
+    args = str_args_from_kwargs(kwargs)
+    justify = args['justify']
+    padding = args['padding']
+    byte_size = kwargs_int_byte_size(args)
+    value = str(buffer[0:byte_size]).decode(args['encoding'])
+    if byte_size is not None:
+        if justify == 'left':
+            value = value.rstrip(padding)
+        elif justify == 'right':
+            value = value.lstrip(padding)
         else:  # center
-            value = value.strip(self.padding)
-        return value, len(value)
+            value = value.strip(padding)
+    return value, len(buffer)
 
 
-class BufferMarshal(Packer, Unpacker):
-    def __init__(self, buffer_cls):
-        self.buffer_cls = buffer_cls
-        self.byte_size = self.buffer_cls.byte_size
-
-    def pack(self, value):
-        return value.pack()
-
-    def unpack(self, ctx, buffer):
-        item = self.buffer_cls()
-        size = item.unpack(buffer)
-        return item, size
+def pack_bytearray(buffer, **kwargs):
+    return bytearray(buffer)
 
 
-class PackerReference(Reference):
-    byte_size = None
-
-    def __init__(self, packer, value_ref):
-        assert value_ref is not None
-        self.packer = packer
-        self.value_ref = value_ref
-        self.byte_size = self.packer.byte_size
-
-    def evaluate(self, ctx):
-        value = self.value_ref(ctx)
-        try:
-            return self.packer.pack(value)
-        except:
-            raise exceptools.chain(PackError(self, value))
-
-    def __safe_repr__(self):
-        return "{0!r}_pack({1!r})".format(self.packer, self.value_ref)
+def unpack_bytearray(buffer, **kwargs):
+    return bytearray(buffer), len(buffer)
 
 
-class FillPackerReference(Reference):
-    byte_size = None
-
-    def __init__(self, packer, byte_size_ref, value_ref):
-        assert value_ref is not None
-        self.packer = packer
-        self.byte_size_ref = byte_size_ref
-        self.value_ref = value_ref
-
-    def evaluate(self, ctx):
-        value = self.value_ref(ctx)
-        byte_size = self.byte_size_ref(ctx)
-        try:
-            return self.packer.pack(value, byte_size)
-        except:
-            raise exceptools.chain(PackError(self, value))
-
-    def __safe_repr__(self):
-        return "{0!r}_pack({1!r}, {2!r})".format(self.packer, self.value_ref, self.byte_size_ref)
+#
+# buffers support
+#
 
 
-class UnpackerReference(Reference):
-    byte_size = None
+def pack_buffer(value, **kwargs):
+    return value.pack()
 
-    def __init__(self, unpacker, absolute_position_ref):
-        self.unpacker = unpacker
-        self.absolute_position_ref = absolute_position_ref
-        self.byte_size = self.unpacker.byte_size
 
-    def get_absolute_position(self, ctx):
-        return self.absolute_position_ref(ctx)
+def unpack_buffer(buffer, **kwargs):
+    obj = kwargs['type']()
+    byte_size = obj.unpack(buffer)
+    return obj, byte_size
 
-    def evaluate(self, ctx):
-        buffer = ctx.input_buffer.get(self.absolute_position_ref(ctx))
-        try:
-            value, byte_size = self.unpacker.unpack(ctx, buffer)
-            return value
-        except:
-            raise exceptools.chain(UnpackError(self, buffer))
 
-    def __safe_repr__(self):
-        return "{0!r}_unpack({1!r})".format(self.unpacker, self.absolute_position_ref)
+def unpack_selector_decorator(selector):
+    def my_selector(obj):
+        o = selector(obj)
+        if isinstance(o, BufferType):
+            result = o()
+            byte_size = result.unpack(buffer)
+            return result, byte_size
+        elif isinstance(o, (list, tuple)):
+            assert len(o) == 2, "selector returned a list but not a (obj, byte_size)-kind of list"
+            return o
+        elif o is None:
+            return None, 0
+        else:
+            assert False, "selector didn't return a Buffer type, a pair of (obj, byte_size) or None, instead it returned {0!r}".format(o)
+
+
+#
+# lists support
+#
+
+
+def pack_list(list, elem_packer, **kwargs):
+    result = BitAwareByteArray(bytearray())
+    for o in list:
+        result += elem_packer(o, **kwargs)
+    return result
+
+
+def unpack_list(buffer, elem_unpacker, **kwargs):
+    n = kwargs.get('n', None)
+    assert n is None or isinstance(n, (int, long)), "n must be either an integer or None but instead got {0!r}".format(n)
+    byte_size = kwargs_fractional_byte_size(kwargs)
+
+    result = []
+    offset = 0
+    index = 0
+    while offset < buffer.length() and (n is None or index < n):
+        unpacker_kwargs = copy_and_remove_kwargs(kwargs, ('buffer', 'n', 'index', 'container'))
+        item, item_len = elem_unpacker(buffer[offset:byte_size], index=index, n=n, container=result, **unpacker_kwargs)
+        result.append(item)
+        offset += item_len
+        index += 1
+    return result, offset

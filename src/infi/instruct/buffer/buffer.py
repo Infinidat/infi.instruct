@@ -80,6 +80,9 @@ class PackAbsolutePositionReference(Reference):
         self.field = field
         self.pack_position_ref = pack_position_ref
 
+    def is_open(self, ctx):
+        return self.pack_position_ref(ctx).is_open()
+
     def evaluate(self, ctx):
         position_list = self.pack_position_ref(ctx)
         if position_list.has_overlaps():
@@ -100,13 +103,16 @@ class PackAbsolutePositionReference(Reference):
             return position_list
 
     def __safe_repr__(self):
-        return "abs_position({0!r})".format(self.field)
+        return "pack_abs_position({0!r}, {1!r})".format(self.field, self.position_list)
 
 
 class UnpackAbsolutePositionReference(Reference):
     def __init__(self, field, unpack_position_ref):
         self.field = field
         self.unpack_position_ref = unpack_position_ref
+
+    def is_open(self, ctx):
+        return self.unpack_position_ref(ctx).is_open()
 
     def evaluate(self, ctx):
         position_list = self.unpack_position_ref(ctx)
@@ -120,7 +126,7 @@ class UnpackAbsolutePositionReference(Reference):
         return position_list
 
     def __safe_repr__(self):
-        return "abs_position({0!r})".format(self.field)
+        return "unpack_abs_position(field={0!r}, {1!r})".format(self.field, self.unpack_position_ref)
 
 
 class FieldReference(Reference):

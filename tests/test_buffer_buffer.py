@@ -3,7 +3,7 @@ from bitarray import bitarray
 from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
 from infi.instruct.buffer.macros import int_field, float_field, str_field, buffer_field, list_field
-from infi.instruct.buffer.macros import bytes_ref, total_size, n_uint32
+from infi.instruct.buffer.macros import bytes_ref, total_size, n_uint32, be_int_field
 from infi.exceptools import *
 
 
@@ -114,6 +114,22 @@ class BufferTestCase(TestCase):
         foo = Foo2()
         foo.f_int = 0xcff
         self.assertEquals(foo.pack(), b"\xcf\x0f")
+
+    def test_buffer_bits__add(self):
+        class CoolingElementInfo(Buffer):
+            byte_size = 3
+            # for real fan speed the fan speed value should be multiplied by a factor of 10
+            fan_speed = int_field(where=(bytes_ref[0].bits[0:3] + bytes_ref[1]))
+            ident = be_int_field(where=bytes_ref[0].bits[7])
+            speed_code = be_int_field(where=bytes_ref[2].bits[0:3])
+            off = be_int_field(where=bytes_ref[2].bits[4])
+            reqstd_on = be_int_field(where=bytes_ref[2].bits[5])
+            fail = be_int_field(where=bytes_ref[2].bits[6])
+            hot_swap = be_int_field(where=bytes_ref[2].bits[7])
+
+        f = CoolingElementInfo()
+        f.fan_speed = 29444
+        f.pack()
 
     def test_buffer_size__static(self):
         class Bar(Buffer):

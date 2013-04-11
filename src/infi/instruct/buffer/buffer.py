@@ -240,6 +240,9 @@ class Buffer(object):
             except:
                 raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 
+        # Short-circuit: if we already have a static byte size, use that.
+        if type(self).byte_size is not None:
+            return type(self).byte_size
         return self.calc_byte_size()
 
     def calc_byte_size(self):

@@ -217,6 +217,15 @@ class IOBufferTestCase(TestCase):
         bv[2.5:3.5] = BitView([0])
         self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('0000000000000000111111110000'), bv)
 
+    def test_bitview_fetch_small(self):
+        bv = BitView("\xFF\x00", 0, 6 * 0.125)
+        self.assertEquals(bv[0], 63)
+
+    def test_array_half_byte(self):
+        a = BitAwareByteArray(bytearray(b'\x02'), start=0, stop=0.5)
+        self.assertEquals(a[0], 2)
+        self.assertEquals(list(a), [2])
+
     def assertEqualBitArrayBitView(self, ba, bv):
         self.assertEqual(ba.length(), 8 * bv.length())
         ba_bytes = self._bitarray_to_bytes(ba)

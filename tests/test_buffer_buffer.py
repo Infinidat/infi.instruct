@@ -2,12 +2,30 @@ import struct
 from bitarray import bitarray
 from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
-from infi.instruct.buffer.macros import int_field, str_field, buffer_field, list_field
-from infi.instruct.buffer.macros import bytes_ref, total_size, int32
+from infi.instruct.buffer.macros import int_field, float_field, str_field, buffer_field, list_field
+from infi.instruct.buffer.macros import bytes_ref, total_size, n_uint32
 from infi.exceptools import *
 
 
 class BufferTestCase(TestCase):
+    def test_buffer_pack_unpack__int(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:4])
+        foo = Foo()
+        foo.f_int = 42
+        self.assertEqual(struct.pack("=l", foo.f_int), foo.pack())
+        foo.unpack("\xFF\x00\x00\x00")
+        self.assertEqual(255, foo.f_int)
+
+    def test_buffer_pack_unpack__float(self):
+        class Foo(Buffer):
+            f_float = float_field(where=bytes_ref[0:4])
+        foo = Foo()
+        foo.f_float = 42.42
+        self.assertEqual(struct.pack("=f", foo.f_float), foo.pack())
+        foo.unpack(struct.pack("=f", 64))
+        self.assertEqual(64, foo.f_float)
+
     def test_buffer_pack_unpack__varsize_string(self):
         class Foo(Buffer):
             f_int = int_field(where=bytes_ref[0:4])
@@ -18,9 +36,9 @@ class BufferTestCase(TestCase):
                 self.f_str = f_str
 
         foo = Foo(42, "hello")
-        self.assertEqual(struct.pack("=L", foo.f_int) + foo.f_str, foo.pack())
+        self.assertEqual(struct.pack("=l", foo.f_int) + foo.f_str, foo.pack())
 
-        foo.unpack(struct.pack("=L", 24) + "olleh")
+        foo.unpack(struct.pack("=l", 24) + "olleh")
         self.assertEqual(24, foo.f_int)
         self.assertEqual("olleh", foo.f_str)
 
@@ -36,7 +54,8 @@ class BufferTestCase(TestCase):
 
     def test_buffer_bits__simple(self):
         class Foo(Buffer):
-            f_int = int_field(where=(bytes_ref[7].bits[0:4] +
+            f_int = int_field(sign='unsigned',
+                              where=(bytes_ref[7].bits[0:4] +
                                      bytes_ref[6].bits[0:4] +
                                      bytes_ref[5].bits[0:4] +
                                      bytes_ref[4].bits[0:4] +
@@ -61,7 +80,8 @@ class BufferTestCase(TestCase):
 
     def test_buffer_bits__complex(self):
         class Foo(Buffer):
-            f_int = int_field(where=(bytes_ref[0:2].bits[4:12] + bytes_ref[2:4].bits[4:12] +
+            f_int = int_field(sign='unsigned',
+                              where=(bytes_ref[0:2].bits[4:12] + bytes_ref[2:4].bits[4:12] +
                                      bytes_ref[4:6].bits[4:12] + bytes_ref[6:8].bits[4:12]))
 
         self.assertEqual(7.5, Foo.byte_size)
@@ -164,7 +184,7 @@ class BufferTestCase(TestCase):
 
     def test_buffer_pack_unpack__fixed_size_list(self):
         class Foo(Buffer):
-            f_int_array = list_field(where=bytes_ref[0:12], type=int32("unsigned", "native"))
+            f_int_array = list_field(where=bytes_ref[0:12], type=n_uint32)
 
         foo = Foo()
         foo.f_int_array = [1, 2, 3]
@@ -175,7 +195,7 @@ class BufferTestCase(TestCase):
 
     def test_buffer_pack_unpack__fixed_size_list2(self):
         class Foo(Buffer):
-            f_int_array = list_field(where=bytes_ref[0:], type=int32("unsigned", "native"))
+            f_int_array = list_field(where=bytes_ref[0:], type=n_uint32)
 
         foo = Foo()
         foo.f_int_array = [1, 2, 3, 4, 5]
@@ -256,7 +276,7 @@ class BufferTestCase(TestCase):
 
     def test_buffer_str_justify(self):
         class Foo(Buffer):
-            f_a = str_field(where=bytes_ref[0:8], justify='right', pad_char=' ')
+            f_a = str_field(where=bytes_ref[0:8], justify='right', padding=' ')
 
         foo = Foo()
         foo.f_a = '123'
@@ -273,11 +293,11 @@ class BufferTestCase(TestCase):
             f_b = int_field(where=bytes_ref[4:8])
 
         class Foo(Buffer):
-            def _choose_bar(self):
+            def _choose_bar(self, buffer, **kwargs):
                 return Bar if self.f_select == 0 else Bar2
 
             f_select = int_field(where=bytes_ref[0:4])
-            f_obj = buffer_field(where=bytes_ref[4:], type=Bar, unpack_selector=_choose_bar)
+            f_obj = buffer_field(where=bytes_ref[4:], type=Bar, unpack_selector=_choose_bar, unpack_after=f_select)
 
         foo = Foo()
         foo.f_select = 0
@@ -318,7 +338,7 @@ class BufferTestCase(TestCase):
                 return self.f_a == other.f_a and self.f_b == other.f_b
 
         class Foo(Buffer):
-            def _choose_bar(self):
+            def _choose_bar(self, buffer, **kwargs):
                 return Bar if self.f_select == 0 else Bar2
 
             f_select = int_field(where=bytes_ref[0:4])

@@ -252,7 +252,7 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
                 # Safety measure for short circuit: if user is assigning an int with more bits than the range of
                 # bits that he specified we shout.
                 raise ValueError("trying to assign int {0} with bit length {1} to bit length {2}".format(value,
-                                 bit_length, 8 * value_len))
+                                 bit_length, int(int_value_len * 8)))
             l = []
             for n in range(0, bit_length, 8):
                 l.append(value % 256)

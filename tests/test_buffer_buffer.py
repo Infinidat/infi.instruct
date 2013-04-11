@@ -128,8 +128,8 @@ class BufferTestCase(TestCase):
             hot_swap = be_int_field(where=bytes_ref[2].bits[7])
 
         f = CoolingElementInfo()
-        f.fan_speed = 29444
-        f.pack()
+        f.unpack("\x03\x8E\x25")
+        self.assertTrue(f.fan_speed < (1 << 12), "fan_speed is {0}, bit length {1}".format(f.fan_speed, f.fan_speed.bit_length()))
 
     def test_buffer_size__static(self):
         class Bar(Buffer):

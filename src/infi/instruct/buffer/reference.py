@@ -8,6 +8,22 @@ OPERATOR_TO_SYMBOL = {
 }
 
 
+def safe_repr(obj):
+    try:
+        obj_repr = repr(obj)
+    except:
+        obj_repr = "({0}<{1}> repr error)".format(type(obj), id(obj))
+    return obj_repr
+
+
+def _repr_peel_obj_ref_for_str(ref):
+    # Used to print attr names or other strings that shouldn't have the all ref('...') wrapping:
+    if isinstance(ref, ObjectReference) and isinstance(ref.obj, str):
+        return ref.obj
+    else:
+        return repr(ref)
+
+
 class CyclicReferenceError(Exception):
     """Raised when discovering a cyclic reference."""
 
@@ -200,24 +216,44 @@ class NumberReference(ObjectReference, NumericReference):
 class FuncCallReference(Reference):
     """Holds a reference to a function call that will get executed when resolving."""
 
-    def __init__(self, func, *args):
+    def __init__(self, func, *args, **kwargs):
         self.func_ref = Reference.to_ref(func)
         self.arg_refs = [Reference.to_ref(arg) for arg in args]
+        self.kwarg_refs = dict((k, Reference.to_ref(v)) for k, v in kwargs.items())
 
     def evaluate(self, ctx):
         func = self.func_ref(ctx)
+        assert callable(func), "func {0!r} from func_ref {1!r} is not callable".format(func, self.func_ref)
         args = [arg_ref(ctx) for arg_ref in self.arg_refs]
-        return func(*args)
+        kwargs = dict((k, v_ref(ctx)) for k, v_ref in self.kwarg_refs.items())
+        return func(*args, **kwargs)
 
     def __safe_repr__(self):
-        return "func_ref({0!r}({1}))".format(self.func_ref, ", ".join([repr(arg) for arg in self.arg_refs]))
+        return "func_ref({0})".format(self._func_repr())
+
+    def _func_repr(self):
+        # Small hacks to make repr look better:
+        if isinstance(self.func_ref, ObjectReference):
+            func_ref_repr = self.func_ref.obj.func_name
+        else:
+            func_ref_repr = safe_repr(self.func_ref)
+        return "{0}({1}))".format(func_ref_repr, self._args_and_kwargs_repr())
+
+    def _args_and_kwargs_repr(self):
+        return ", ".join((self._args_repr(), self._kwargs_repr()))
+
+    def _args_repr(self):
+        return ", ".join(safe_repr(arg) for arg in self.arg_refs)
+
+    def _kwargs_repr(self):
+        return ", ".join("{0}={1}".format(k, safe_repr(v_ref)) for k, v_ref in self.kwarg_refs.items())
 
 
 class NumericFuncCallReference(FuncCallReference, NumericReference):
     """Holds a reference to a function call that returns a number."""
 
     def __safe_repr__(self):
-        return "num_func_ref({0!r}({1}))".format(self.func_ref, ", ".join([repr(arg) for arg in self.arg_refs]))
+        return "num_func_ref({0})".format(self._func_repr())
 
 
 class LengthFuncCallReference(NumericFuncCallReference):
@@ -237,7 +273,9 @@ class GetAttrReference(FuncCallReference):
         super(GetAttrReference, self).__init__(getattr, object, attr_name)
 
     def __safe_repr__(self):
-        return "{0!r}.{1!r}".format(*self.arg_refs)
+        # small hacks to make repr look better:
+        arg_ref_repr = _repr_peel_obj_ref_for_str(self.arg_refs[1])
+        return "{0!r}.{1}".format(self.arg_refs[0], arg_ref_repr)
 
 
 class NumericGetAttrReference(GetAttrReference, NumericReference):
@@ -252,7 +290,9 @@ class SetAttrReference(FuncCallReference):
         super(SetAttrReference, self).__init__(setattr, object, attr_name, value)
 
     def __safe_repr__(self):
-        return "{0!r}.{1!r} = {2!r}".format(*self.arg_refs)
+        # small hacks to make repr look better:
+        arg_ref_repr = _repr_peel_obj_ref_for_str(self.arg_refs[1])
+        return "{0!r}.{1} = {2!r}".format(self.arg_refs[0], arg_ref_repr, self.arg_refs[2])
 
 
 class SetAndGetAttrReference(FuncCallReference):
@@ -263,7 +303,8 @@ class SetAndGetAttrReference(FuncCallReference):
                                                      object, attr_name, value)
 
     def __safe_repr__(self):
-        return "set {0!r}.{1!r} = {2!r} then return {2!r}".format(*self.arg_refs)
+        arg_ref_repr = _repr_peel_obj_ref_for_str(self.arg_refs[1])
+        return "set {0!r}.{1} = {2!r} then return rvalue".format(self.arg_refs[0], arg_ref_repr, self.arg_refs[2])
 
 
 class NumericSetAndGetAttrReference(SetAndGetAttrReference, NumericReference):

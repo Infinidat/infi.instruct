@@ -2,7 +2,7 @@ import sys
 import operator
 import functools
 
-from .reference import Reference, NumericReference
+from .reference import safe_repr, Reference, NumericReference
 
 BIT = 0.125
 
@@ -28,7 +28,7 @@ class SequentialRange(object):
 
     def to_closed(self, total_len):
         """Converts a potentially open range into a closed range by making stop a finite value (total_len)."""
-        assert total_len >= self.start
+        assert total_len >= self.start, "self.start ({0}) is bigger than total_len ({1})".format(self.start, total_len)
         return SequentialRange(self.start, self.stop if self.stop is not None else total_len)
 
     def length(self):
@@ -80,6 +80,18 @@ class SequentialRangeList(list):
                 return None
             m = max(m, r.stop)
         return m
+
+    def sorted(self):
+        return SequentialRangeList(sorted(self))
+
+    def byte_offset(self, bytes):
+        remaining_bytes = bytes
+        for r in self:
+            if r.is_open() or r.length() > remaining_bytes:
+                return r.start + remaining_bytes
+            else:
+                remaining_bytes -= r.length()
+        assert False, "requested byte offset {0!r} is outside the range list {1!r}".format(bytes, self)
 
     def is_open(self):
         return any(r.is_open() for r in self)
@@ -134,6 +146,9 @@ class ListRangeReference(RangeReference):
     def evaluate(self, ctx):
         return SequentialRangeList(reduce(operator.add, [ref(ctx) for ref in self.list]))
 
+    def __safe_repr__(self):
+        return "[{0}]".format(", ".join(safe_repr(o for o in self.list)))
+
 
 class BitContainer(object):
     def __init__(self):
@@ -162,8 +177,8 @@ class ByteSliceRangeReference(BitContainer, RangeReference):
     def evaluate(self, ctx):
         return SequentialRangeList([SequentialRange(self.start(ctx), self.stop(ctx))])
 
-    def __repr__(self):
-        return "[{0!r}:{1!r}]".format(self.start, self.stop)
+    def __safe_repr__(self):
+        return "[{0!r}:{1!r}]".format(safe_repr(self.start), safe_repr(self.stop))
 
 
 class ByteNumericRangeReference(BitContainer, RangeReference):
@@ -176,6 +191,9 @@ class ByteNumericRangeReference(BitContainer, RangeReference):
         index = self.ref(ctx)
         assert index >= 0
         return SequentialRangeList([SequentialRange(index, index + 1)])
+
+    def __safe_repr__(self):
+        return safe_repr(self.ref)
 
 
 class ByteRangeFactory(object):
@@ -214,6 +232,9 @@ class BitNumericRangeReference(BitRangeReference):
         return SequentialRangeList([SequentialRange(byte_offset - sum_length + range_list[i].start,
                                                     byte_offset - sum_length + range_list[i].start + BIT)])
 
+    def __safe_repr__(self):
+        return "{0}.bits[{1}]".format(safe_repr(self.parent_range_ref), safe_repr(self.ref))
+
 
 class BitSliceRangeReference(BitRangeReference):
     def __init__(self, parent_range_ref, slic):
@@ -225,9 +246,6 @@ class BitSliceRangeReference(BitRangeReference):
         super(BitSliceRangeReference, self).__init__(parent_range_ref)
         self.start = Reference.to_ref(slic.start)
         self.stop = Reference.to_ref(slic.stop)
-
-    def __repr__(self):
-        return "{0!r}.bits[{1}:{2}]".format(self.parent_range_ref, self.start, self.stop)
 
     def evaluate(self, ctx):
         range_list = self.parent_range_ref(ctx)
@@ -264,6 +282,9 @@ class BitSliceRangeReference(BitRangeReference):
             raise ValueError("Bit range {0!r} is out of range for parent range {1!r}".format(bit_range, range_list))
 
         return SequentialRangeList(result)
+
+    def __safe_repr__(self):
+        return "{0}.bits[{1}:{2}]".format(safe_repr(self.parent_range_ref), safe_repr(self.start), safe_repr(self.stop))
 
 
 class BitRangeFactory(object):

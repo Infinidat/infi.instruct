@@ -37,7 +37,7 @@ class BitView(collections.Sequence):
         if isinstance(key, slice):
             return self._get_range(start, stop)
         else:  # must be int/float otherwise _key_to_range would raise an error
-            return self._get_byte_bits(start, 8)
+            return self._get_byte_bits(start, min(8, int((self.stop - start) * 8)))
 
     def __len__(self):
         return int(math.ceil(self.stop - self.start))

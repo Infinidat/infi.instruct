@@ -139,6 +139,7 @@ class FieldReference(Reference):
     pack_absolute_position_ref = None
     unpack_absolute_position_ref = None
     unpack_after = None
+    default = None
 
     def init(self, name):
         self.attr_name_ref.obj = name
@@ -169,15 +170,6 @@ class BufferType(type):
         # If we initialize our own class don't do any modifications.
         if name == "Buffer":
             return super(BufferType, cls).__new__(cls, name, bases, attrs)
-
-        # FIXME: add support for __init__ that extracts values from kwargs
-        # We want to first put our own __init__ method that will initialize all the fields passed by kwargs and then
-        # call the user's __init__ method (if exists) with args/kwargs left.
-        # if "__init__" in attrs:
-        #    user_init = attrs["__init__"]
-        #    del attrs["__init__"]
-        #else:
-        #    user_init = None
 
         new_cls = super(BufferType, cls).__new__(cls, name, bases, attrs)
 
@@ -212,8 +204,18 @@ class BufferType(type):
 class Buffer(object):
     __metaclass__ = BufferType
 
-    def __init__(self, *args, **kwargs):
-        super(Buffer, self).__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super(Buffer, self).__init__()
+
+        field_names = self._all_field_names()
+        for name, value in kwargs.items():
+            assert name in field_names, ("field {0} in class {1} is not defined but passed to Buffer's __init__"
+                                         .format(name, type(self)))
+            setattr(self, name, value)
+
+        for field in self._all_fields():
+            if isinstance(getattr(self, field.attr_name()), FieldReference):
+                setattr(self, field.attr_name(), field.default)
 
     def pack(self):
         """Packs the object and returns a buffer representing the packed object."""
@@ -270,6 +272,9 @@ class Buffer(object):
             cls_fields = getattr(cls, '__fields__', [])
             fields.extend(cls_fields)
         return fields
+
+    def _all_field_names(self):
+        return set(field.attr_name() for field in self._all_fields())
 
     def __repr__(self):
         fields = type(self).__fields__

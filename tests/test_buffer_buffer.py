@@ -391,3 +391,23 @@ class BufferTestCase(TestCase):
         foo.unpack(struct.pack("=LLLLLLL", 1, 13, 31, 12, 21, 45, 54))
         self.assertEquals(1, foo.f_select)
         self.assertEquals([Bar2(13, 31), Bar2(12, 21), Bar2(45, 54)], foo.f_list)
+
+    def test_buffer_init(self):
+        class Foo(Buffer):
+            f_a = int_field(where=bytes_ref[0:4])
+        f = Foo(f_a=1)
+        self.assertEquals(f.pack(), struct.pack("=l", 1))
+
+    def test_buffer_default(self):
+        class Foo(Buffer):
+            f_a = int_field(where=bytes_ref[0:4], default=42)
+
+        f = Foo()
+        self.assertEquals(f.f_a, 42)
+
+        f = Foo(f_a=43)
+        self.assertEquals(f.f_a, 43)
+
+        f = Foo()
+        f.f_a = 44
+        self.assertEquals(f.f_a, 44)

@@ -132,7 +132,7 @@ class PackSequentialRangeListByteLengthReference(SequentialRangeListByteLengthRe
 
 class FieldReferenceBuilder(object):
     def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack,
-                 unpack_after):
+                 unpack_after, default):
         self.numeric = numeric
         self.set_before_pack = set_before_pack
         self.set_after_unpack = set_after_unpack
@@ -140,6 +140,7 @@ class FieldReferenceBuilder(object):
         self.where_when_pack = where_when_pack
         self.where_when_unpack = where_when_unpack
         self.unpack_after = unpack_after
+        self.default = default
         self.pack_size = None
         self.unpack_size = None
 
@@ -179,6 +180,7 @@ class FieldReferenceBuilder(object):
         # When we first create a field reference we don't know the field name yet. When __new__ will get called
         # on Buffer, it will fill it in for us.
         self.field.attr_name_ref = ObjectReference(None)
+        self.field.default = self.default
 
     def set_field_position(self):
         if self.where is not None:
@@ -253,14 +255,16 @@ def int_field(endian='native', sign='signed',
               where_when_pack=None,
               where_when_unpack=None,
               unpack_after=None,
-              byte_size=None):
+              byte_size=None,
+              default=None):
     builder = FieldReferenceBuilder(numeric=True,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
-                                    unpack_after=unpack_after)
+                                    unpack_after=unpack_after,
+                                    default=default)
 
     marshal_kwargs = dict(sign=sign, endian=endian)
     if byte_size:
@@ -287,14 +291,16 @@ def float_field(endian='native',
                 where_when_pack=None,
                 where_when_unpack=None,
                 unpack_after=None,
-                byte_size=None):
+                byte_size=None,
+                default=None):
     builder = FieldReferenceBuilder(numeric=True,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
-                                    unpack_after=unpack_after)
+                                    unpack_after=unpack_after,
+                                    default=default)
     marshal_kwargs = dict(endian=endian)
     if byte_size:
         marshal_kwargs['byte_size'] = byte_size
@@ -308,14 +314,16 @@ def bytearray_field(set_before_pack=None,
                     where=None,
                     where_when_pack=None,
                     where_when_unpack=None,
-                    unpack_after=None):
+                    unpack_after=None,
+                    default=None):
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
-                                    unpack_after=unpack_after)
+                                    unpack_after=unpack_after,
+                                    default=default)
     builder.set_packer(pack_bytearray)
     builder.set_unpacker(unpack_bytearray)
     return builder.create()
@@ -327,14 +335,16 @@ def str_field(encoding='ascii', padding=' ', justify='left',
               where=None,
               where_when_pack=None,
               where_when_unpack=None,
-              unpack_after=None):
+              unpack_after=None,
+              default=None):
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
-                                    unpack_after=unpack_after)
+                                    unpack_after=unpack_after,
+                                    default=default)
     marshal_kwargs = dict(encoding=encoding, padding=padding, justify=justify)
     builder.set_packer(pack_str, **marshal_kwargs)
     builder.set_unpacker(unpack_str, **marshal_kwargs)
@@ -366,14 +376,16 @@ def buffer_field(type,
                  where_when_pack=None,
                  where_when_unpack=None,
                  unpack_after=None,
-                 byte_size=None):
+                 byte_size=None,
+                 default=None):
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
-                                    unpack_after=unpack_after)
+                                    unpack_after=unpack_after,
+                                    default=default)
     marshal_kwargs = dict(type=type)
     if byte_size:
         marshal_kwargs = dict(byte_size=byte_size)
@@ -389,7 +401,8 @@ def list_field(type, n=None, unpack_selector=None,
                where=None,
                where_when_pack=None,
                where_when_unpack=None,
-               unpack_after=None):
+               unpack_after=None,
+               default=None):
     assert isinstance(type, (tuple, BufferType)), \
         "list type argument must be one of the predefined types or a subclass of Buffer but instead it's {0}".format(type)
 
@@ -399,7 +412,8 @@ def list_field(type, n=None, unpack_selector=None,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
-                                    unpack_after=unpack_after)
+                                    unpack_after=unpack_after,
+                                    default=default)
 
     shared_kwargs = dict(n=n)
 

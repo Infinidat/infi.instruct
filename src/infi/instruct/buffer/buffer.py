@@ -1,3 +1,4 @@
+import math
 import itertools
 
 from infi import exceptools
@@ -188,7 +189,7 @@ class BufferType(type):
                 attr.init(attr_name)
                 fields.append(attr)
 
-        setattr(new_cls, 'byte_size', cls.calc_byte_size(name, fields))
+        setattr(new_cls, 'byte_size', attrs['byte_size'] if 'byte_size' in attrs else cls.calc_byte_size(name, fields))
         setattr(new_cls, '__fields__', fields)
         return new_cls
 
@@ -225,7 +226,19 @@ class Buffer(object):
             except:
                 raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self), field.attr_name()))
 
-        return bytearray(ctx.output_buffer.get())
+        result = bytearray(ctx.output_buffer.get())
+
+        # We want to support the user defining the buffer's fixed byte size but not using it all:
+        static_byte_size = type(self).byte_size
+        if static_byte_size:
+            static_byte_size = int(math.ceil(static_byte_size))
+            assert len(result) <= static_byte_size, \
+                ("in type {0} computed pack size is {1} but declared byte size is {2} - perhaps you manually defined " +
+                 "the byte size in the type but the actual size is bigger?").format(type(self), len(result),
+                                                                                    static_byte_size)
+            if len(result) < static_byte_size:
+                result += bytearray(static_byte_size - len(result))
+        return result
 
     def unpack(self, buffer):
         """Unpacks the object's fields from buffer."""

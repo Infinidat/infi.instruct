@@ -333,6 +333,17 @@ class BufferTestCase(TestCase):
         self.assertEquals(13, foo.f_obj.f_a)
         self.assertEquals(31, foo.f_obj.f_b)
 
+    def test_single_bits(self):
+        # ses3r05: 7.3.25
+        class SasExpanderElementInfo(Buffer):
+            byte_size = 3
+            fail = be_int_field(where=bytes_ref[0].bits[6])
+            ident = be_int_field(where=bytes_ref[0].bits[7])
+
+        f = SasExpanderElementInfo()
+        f.unpack("\x00\x00\x00")
+        self.assertEquals(f.pack(), "\x00\x00\x00")
+
     def test_buffer_list_selector(self):
         class Bar(Buffer):
             f_a = int_field(where=bytes_ref[0:4])

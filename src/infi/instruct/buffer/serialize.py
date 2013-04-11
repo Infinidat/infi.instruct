@@ -87,7 +87,8 @@ def pack_int(value, **kwargs):
 
 def unpack_bit_int(buffer, byte_size, **kwargs):
     result = 0
-    for b in buffer[0:byte_size]:
+    l = reversed(buffer[0:byte_size]) if kwargs.get("endian", "big") else buffer[0:byte_size]
+    for b in l:
         result *= 256
         result += b
     return result, byte_size

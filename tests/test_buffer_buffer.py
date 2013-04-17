@@ -411,3 +411,14 @@ class BufferTestCase(TestCase):
         f = Foo()
         f.f_a = 44
         self.assertEquals(f.f_a, 44)
+
+    def test_empty_range(self):
+        class Foo(Buffer):
+            l = be_int_field(where=bytes_ref[2:4])
+            s = str_field(where_when_pack=bytes_ref[4:], where_when_unpack=bytes_ref[4:l + 4])
+
+        f = Foo()
+        f.l = 0
+        f.s = ""
+        self.assertEquals(f.pack(), "\x00\x00\x00\x00")
+        f.unpack("\x00\x00\x00\x00")

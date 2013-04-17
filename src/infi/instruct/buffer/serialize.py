@@ -11,15 +11,15 @@ from ..utils.kwargs import (copy_defaults_and_override_with_kwargs, assert_kwarg
 
 def kwargs_fractional_byte_size(kwargs):
     byte_size = kwargs.get("byte_size", None)
-    assert byte_size is None or ((byte_size > 0) and (int(byte_size * 8) == byte_size * 8)), \
-        "size can be unknown (None) or a positive fraction of 8 but instead got {0}".format(byte_size)
+    assert byte_size is None or ((byte_size >= 0) and (int(byte_size * 8) == byte_size * 8)), \
+        "size can be unknown (None) or a non-negative fraction of 8 but instead got {0}".format(byte_size)
     return byte_size
 
 
 def kwargs_int_byte_size(kwargs):
     byte_size = kwargs.get("byte_size", None)
-    assert byte_size is None or ((byte_size > 0) and (int(byte_size) == byte_size)), \
-        "size can be unknown (None) or a positive integer but instead got {0}".format(byte_size)
+    assert byte_size is None or ((byte_size >= 0) and (int(byte_size) == byte_size)), \
+        "size can be unknown (None) or a non-negative integer but instead got {0}".format(byte_size)
     return byte_size
 
 

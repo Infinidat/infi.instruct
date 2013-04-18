@@ -2,7 +2,7 @@ from functools import partial
 from ..utils.kwargs import keep_kwargs_partial
 from .range import SequentialRangeList, ByteRangeFactory
 
-from .reference import (safe_repr, Reference, Context, ContextGetAttrReference, ObjectReference,
+from .reference import (safe_repr, Reference, Context, ContextGetAttrReference, ObjectReference, NumberReference,
                         GetAttrReference, SetAndGetAttrReference, NumericSetAndGetAttrReference,
                         FuncCallReference, NumericFuncCallReference, NumericGetAttrReference, NumericReference)
 
@@ -213,8 +213,12 @@ class FieldReferenceBuilder(object):
     def set_field_pack_value_ref(self):
         if self.set_before_pack is not None:
             if not isinstance(self.set_before_pack, Reference):
-                pack_value_class = NumericFuncCallReference if self.numeric else FuncCallReference
-                pack_value_ref = pack_value_class(self.set_before_pack, self.get_obj_from_ctx_ref)
+                if callable(self.set_before_pack):
+                    pack_value_class = NumericFuncCallReference if self.numeric else FuncCallReference
+                    pack_value_ref = pack_value_class(self.set_before_pack, self.get_obj_from_ctx_ref)
+                else:
+                    pack_value_class = NumberReference if self.numeric else ObjectReference
+                    pack_value_ref = pack_value_class(self.set_before_pack)
             else:
                 pack_value_ref = self.set_before_pack
             self.field.pack_value_ref = self.set_and_get_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref, pack_value_ref)

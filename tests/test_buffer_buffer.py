@@ -422,3 +422,13 @@ class BufferTestCase(TestCase):
         f.s = ""
         self.assertEquals(f.pack(), "\x00\x00\x00\x00")
         f.unpack("\x00\x00\x00\x00")
+
+    def test_set_buffer_on_pack(self):
+        class Foo(Buffer):
+            l = be_int_field(where=bytes_ref[0])
+
+        class Bar(Buffer):
+            f = buffer_field(type=Foo, where=bytes_ref[0], set_before_pack=Foo(l=1))
+
+        b = Bar()
+        b.pack()

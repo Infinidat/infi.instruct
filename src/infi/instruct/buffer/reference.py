@@ -1,3 +1,4 @@
+import types
 from numbers import Number
 import operator
 
@@ -233,7 +234,8 @@ class FuncCallReference(Reference):
 
     def _func_repr(self):
         # Small hacks to make repr look better:
-        if isinstance(self.func_ref, ObjectReference):
+        if isinstance(self.func_ref, ObjectReference) \
+                and isinstance(self.func_ref.obj, (types.FunctionType, types.MethodType)):
             func_ref_repr = self.func_ref.obj.func_name
         else:
             func_ref_repr = safe_repr(self.func_ref)

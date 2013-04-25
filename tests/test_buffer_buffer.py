@@ -7,6 +7,13 @@ from infi.instruct.buffer.macros import bytes_ref, total_size, n_uint32, be_int_
 from infi.exceptools import *
 
 
+def junk_generator(size):
+    import string
+    import random
+    chars = string.letters + string.digits + string.punctuation
+    return ''.join(random.choice(chars) for x in range(size))
+
+
 class BufferTestCase(TestCase):
     def test_buffer_pack_unpack__int(self):
         class Foo(Buffer):
@@ -432,3 +439,16 @@ class BufferTestCase(TestCase):
 
         b = Bar()
         b.pack()
+
+    def test_buffer_with_junk(self):
+        class Foo(Buffer):
+            l = be_int_field(where=bytes_ref[0:2])
+            s = str_field(where_when_pack=bytes_ref[2:], where_when_unpack=bytes_ref[2:l + 4])
+
+        f = Foo()
+        f.s = "hello world"
+        f.l = len(f.s)
+        self.assertEquals(f.pack(), "\x00\x0bhello world")
+
+        b = "\x00\x0bhello world" + junk_generator(0x10000)
+        f.unpack(b)

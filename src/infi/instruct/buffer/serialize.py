@@ -1,7 +1,7 @@
 import math
 import struct
 
-from .io_buffer import BitAwareByteArray
+from .io_buffer import BitAwareByteArray, BitView
 from .buffer import BufferType
 
 from ..errors import InstructError
@@ -216,6 +216,12 @@ def pack_bytearray(buffer, **kwargs):
 
 
 def unpack_bytearray(buffer, **kwargs):
+    # Shortcuts before reverting to the generic conversion:
+    if isinstance(buffer, bytearray):
+        return buffer, len(buffer)
+    elif isinstance(buffer, BitView):
+        result = buffer.to_bytearray()
+        return result, len(result)
     return bytearray(buffer), len(buffer)
 
 

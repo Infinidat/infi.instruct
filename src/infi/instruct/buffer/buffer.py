@@ -65,11 +65,16 @@ class TotalSizeReference(Reference, NumericReference):
 
         if ctx.is_pack():
             lists = [field.pack_absolute_position_ref(ctx) for field in ctx.fields]
+            positions = SequentialRangeList(itertools.chain(*lists))
+            result = positions.max_stop()  # total_size calculation
         else:
-            lists = [field.unpack_absolute_position_ref(ctx) for field in ctx.fields]
-        positions = SequentialRangeList(itertools.chain(*lists))
-        result = positions.max_stop()  # total_size calculation
+            result = max(self._unpack_position_list_for_field(ctx, field) for field in ctx.fields)
+
         assert result is not None
+        return result
+
+    def _unpack_position_list_for_field(self, ctx, field):
+        result = field.unpack_absolute_position_ref.unpack_position_ref(ctx).byte_offset(field.unpack_ref(ctx)[1])
         return result
 
     def __safe_repr__(self):
@@ -255,16 +260,15 @@ class Buffer(object):
             except:
                 raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 
-        # Short-circuit: if we already have a static byte size, use that.
-        if type(self).byte_size is not None:
-            return type(self).byte_size
-        return self.calc_byte_size()
+        return self.calc_byte_size(ctx)
 
-    def calc_byte_size(self):
+    def calc_byte_size(self, ctx=None):
         """
         Returns this instance's size. If the size has to be calculated it may require packing some of the fields.
         """
-        return TotalSizeReference()(PackContext(self, type(self).__fields__))
+        if ctx is None:
+            ctx = PackContext(self, type(self).__fields__)
+        return TotalSizeReference()(ctx)
 
     def _all_fields(self):
         fields = []

@@ -20,10 +20,8 @@ class BitView(collections.Sequence):
     def __init__(self, buffer, start=0, stop=None):
         super(BitView, self).__init__()
         # FIXME: On Python 2.7 there's no bytes() type (immutable byte sequence).
-        if isinstance(buffer, bytearray):
-            self.buffer = buffer
-        elif isinstance(buffer, (str, unicode)):
-            self.buffer = [ord(c) for c in buffer]
+        if isinstance(buffer, (str, unicode)):
+            self.buffer = bytearray(buffer)
         else:
             self.buffer = buffer
         self.start = start if start is not None else 0
@@ -58,6 +56,12 @@ class BitView(collections.Sequence):
             byte_i, bit_i = float_to_byte_bit_pair(float(i) / 8)
             result.append((self.buffer[byte_i] >> bit_i) & 1)
         return "".join(str(n) for n in reversed(result))
+
+    def to_bytearray(self):
+        if int(self.start) == self.start:
+            return self.buffer[int(self.start):int(math.ceil(self.stop))]
+        else:
+            return bytearray(list(self))  # very inefficient.
 
     def length(self):
         return self.stop - self.start
@@ -269,10 +273,16 @@ class InputBuffer(object):
         self.buffer = BitView(buffer)
 
     def get(self, range_list):
-        result = BitAwareByteArray(bytearray())
-        for range in range_list:
+        if len(range_list) == 1:
+            # Shortcut: if it's a simple range we can just return a subset of the bit view.
+            range = range_list[0]
             assert not range.is_open()
-            result += self.buffer[range.start:range.stop]
+            result = self.buffer[range.start:range.stop]
+        else:
+            result = BitAwareByteArray(bytearray())
+            for range in range_list:
+                assert not range.is_open()
+                result += self.buffer[range.start:range.stop]
 
         return result
 

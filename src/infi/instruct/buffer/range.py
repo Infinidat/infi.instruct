@@ -87,7 +87,7 @@ class SequentialRangeList(list):
     def byte_offset(self, bytes):
         remaining_bytes = bytes
         for r in self:
-            if r.is_open() or r.length() > remaining_bytes:
+            if r.is_open() or r.length() >= remaining_bytes:
                 return r.start + remaining_bytes
             else:
                 remaining_bytes -= r.length()

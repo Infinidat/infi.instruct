@@ -5,7 +5,8 @@ from infi import exceptools
 from ..errors import InstructError
 
 from .range import SequentialRangeList
-from .reference import Context, Reference, NumericReference
+from .reference import (Reference, NumericReferenceMixin, FieldReference, PackContext, UnpackContext,
+                        TotalSizeReference)
 from .io_buffer import InputBuffer, OutputBuffer
 
 
@@ -25,152 +26,16 @@ class InstructBufferError(InstructError):
         self.attr_name = attr_name
 
 
-class BufferContext(Context):
-    """Base class for buffer context. Contains the object we're packing/unpacking and the list of fields."""
-
-    def __init__(self, obj, fields):
-        super(BufferContext, self).__init__()
-        self.obj = obj
-        self.fields = fields
-
-    def is_pack(self):
-        return isinstance(self, PackContext)
-
-    def is_unpack(self):
-        return isinstance(self, UnpackContext)
-
-
-class PackContext(BufferContext):
-    """Context used when packing. Contains the object, fields and output buffer."""
-
-    def __init__(self, obj, fields):
-        super(PackContext, self).__init__(obj, fields)
-        self.output_buffer = OutputBuffer()
-
-
-class UnpackContext(BufferContext):
-    """Context used when unpacking. Contains the object, fields and input buffer."""
-
-    def __init__(self, obj, fields, input_buffer):
-        super(UnpackContext, self).__init__(obj, fields)
-        self.input_buffer = InputBuffer(input_buffer)
-
-
-class TotalSizeReference(Reference, NumericReference):
-    def evaluate(self, ctx):
-        # First, we'll try a shortcut - if the size is static, we'll return that since we precalculated it.
-        size = getattr(type(ctx.obj), 'byte_size', None)
-        if size is not None:
-            return size
-
-        if ctx.is_pack():
-            lists = [field.pack_absolute_position_ref(ctx) for field in ctx.fields]
-            positions = SequentialRangeList(itertools.chain(*lists))
-            result = positions.max_stop()  # total_size calculation
-        else:
-            result = max(self._unpack_position_list_for_field(ctx, field) for field in ctx.fields)
-
-        assert result is not None
-        return result
-
-    def _unpack_position_list_for_field(self, ctx, field):
-        result = field.unpack_absolute_position_ref.unpack_position_ref(ctx).byte_offset(field.unpack_ref(ctx)[1])
-        return result
-
-    def __safe_repr__(self):
-        return "total_size"
-
-
-class PackAbsolutePositionReference(Reference):
-    def __init__(self, field, pack_position_ref):
-        self.field = field
-        self.pack_position_ref = pack_position_ref
-
-    def is_open(self, ctx):
-        return self.pack_position_ref(ctx).is_open()
-
-    def evaluate(self, ctx):
-        position_list = self.pack_position_ref(ctx)
-        if position_list.has_overlaps():
-            raise ValueError("field position list has overlapping ranges")
-
-        if position_list.is_open():
-            # We need the serialization result of this field to set the range. Note that we already checked if the
-            # position has overlapping ranges, so there may be only a single open range.
-            packed_field = self.field.pack_ref(ctx)
-            current_length = 0
-            absolute_position_list = []
-            for pos in position_list:
-                abs_pos = pos.to_closed(pos.start + len(packed_field) - current_length)
-                absolute_position_list.append(abs_pos)
-                current_length += abs_pos.length()
-            return absolute_position_list
-        else:
-            return position_list
-
-    def __safe_repr__(self):
-        return "pack_abs_position({0!r}, {1!r})".format(self.field, self.position_list)
-
-
-class UnpackAbsolutePositionReference(Reference):
-    def __init__(self, field, unpack_position_ref):
-        self.field = field
-        self.unpack_position_ref = unpack_position_ref
-
-    def is_open(self, ctx):
-        return self.unpack_position_ref(ctx).is_open()
-
-    def evaluate(self, ctx):
-        position_list = self.unpack_position_ref(ctx)
-        if position_list.has_overlaps():
-            raise ValueError("field position list has overlapping ranges")
-
-        if position_list.is_open():
-            buffer_len = ctx.input_buffer.length()
-            return position_list.to_closed(buffer_len)
-
-        return position_list
-
-    def __safe_repr__(self):
-        return "unpack_abs_position(field={0!r}, {1!r})".format(self.field, self.unpack_position_ref)
-
-
-class FieldReference(Reference):
-    attr_name_ref = None
-    pack_value_ref = None
-    unpack_value_ref = None
-    pack_ref = None
-    unpack_ref = None
-    pack_absolute_position_ref = None
-    unpack_absolute_position_ref = None
-    unpack_after = None
-    default = None
-
-    def init(self, name):
-        self.attr_name_ref.obj = name
-
-    def is_initialized(self):
-        return self.attr_name_ref.obj is not None
-
-    def attr_name(self):
-        return self.attr_name_ref.obj
-
-    def evaluate(self, ctx):
-        if ctx.is_pack():
-            return self.pack_value_ref(ctx)
-        else:
-            return self.unpack_value_ref(ctx)
-
-    def __safe_repr__(self):
-        return "field_ref({0!r})".format(self.attr_name_ref.obj)
-
-
-class NumericFieldReference(FieldReference, NumericReference):
-    def __safe_repr__(self):
-        return "num_field_ref({0!r})".format(self.attr_name_ref.obj)
-
-
 class BufferType(type):
+    """Meta class for Buffer classes.
+    This meta-class does two things:
+      * Copy the fields declared as attributes on the object for "safe keeping" to `__fields__` since they're going to
+        get overwritten by actual values once the instance is created. It also sets the field name for each field
+        reference since the name is an rvalue (e.g. when evaluating `foo = int_field()` we are unaware of `foo` in the
+        scope of `int_field`).
+      * If there's no `byte_size` attribute already existing it tries to calculate and add a `byte_size` class
+        attribute - this applies only to buffers that have fixed positions.
+    """
     def __new__(cls, name, bases, attrs):
         # If we initialize our own class don't do any modifications.
         if name == "Buffer":
@@ -218,6 +83,7 @@ class Buffer(object):
                                          .format(name, type(self)))
             setattr(self, name, value)
 
+        # Set to default all fields that don't have a value (we know that since they're still FieldReference objects)
         for field in self._all_fields():
             if isinstance(getattr(self, field.attr_name()), FieldReference):
                 setattr(self, field.attr_name(), field.default)
@@ -254,6 +120,7 @@ class Buffer(object):
 
         for field in fields:
             try:
+                # TODO: get rid of unpack_after once we use dependencies as we should.
                 for prev_field in field.unpack_after:
                     prev_field.unpack_value_ref(ctx)
                 field.unpack_value_ref(ctx)

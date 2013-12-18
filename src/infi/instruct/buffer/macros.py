@@ -1,13 +1,12 @@
 from functools import partial
-from ..utils.kwargs import keep_kwargs_partial
-from .range import SequentialRangeList, ByteRangeFactory
+from infi.instruct.utils.kwargs import keep_kwargs_partial
+from infi.instruct.utils.safe_repr import safe_repr
 
-from .reference import (safe_repr, Reference, Context, ContextGetAttrReference, ObjectReference, NumberReference,
-                        GetAttrReference, SetAndGetAttrReference, NumericSetAndGetAttrReference,
-                        FuncCallReference, NumericFuncCallReference, NumericGetAttrReference, NumericReference)
+from .reference import (Reference, ContextGetAttrReference, FuncCallReference, LengthFuncCallReference,
+                        TotalSizeReference, AfterFieldReference, FieldOrAttrReference, SelfProxy, ByteRangeFactory)
+from .field_reference_builder import FieldReferenceBuilder
 
-from .buffer import (BufferType, FieldReference, NumericFieldReference, PackAbsolutePositionReference,
-                     UnpackAbsolutePositionReference, TotalSizeReference)
+from .buffer import BufferType
 
 from .serialize import (pack_int, unpack_int, pack_float, unpack_float, pack_str, unpack_str, pack_bytearray,
                         unpack_bytearray, pack_buffer, unpack_buffer, pack_list, unpack_list)
@@ -19,7 +18,7 @@ __all__ = [
     'int64', 'n_int64', 'b_int64', 'l_int64', 'uint64', 'n_uint64', 'b_uint64', 'l_uint64',
     'int_field', 'float_field', 'str_type', 'str_type_factory', 'str_field', 'buffer_field', 'list_field',
     'bytearray_field', 'be_int_field', 'le_int_field', 'bytes_ref', 'total_size', 'after_ref', 'member_func_ref',
-    'le_uint_field', 'be_uint_field'
+    'le_uint_field', 'be_uint_field', 'len_ref', 'self_ref'
 ]
 JUSTIFY = ('left', 'right')
 
@@ -62,6 +61,7 @@ l_uint64 = int_marshal(8, "unsigned", "little")
 
 bytes_ref = ByteRangeFactory()
 total_size = TotalSizeReference()
+self_ref = SelfProxy()
 
 
 def str_type_factory(encoding='ascii', padding=' ', justify='left', byte_size=None):
@@ -71,186 +71,6 @@ def str_type_factory(encoding='ascii', padding=' ', justify='left', byte_size=No
     return (keep_kwargs_partial(pack_str, **kwargs), keep_kwargs_partial(unpack_str, **kwargs))
 
 str_type = str_type_factory()
-
-
-class InputBufferPartReference(Reference):
-    def __init__(self, position_ref):
-        self.position_ref = position_ref
-
-    def evaluate(self, ctx):
-        return ctx.input_buffer.get(self.position_ref(ctx))
-
-    def __safe_repr__(self):
-        return "input_buffer[{0!r}]".format(self.position_ref)
-
-
-class UnpackerReference(FuncCallReference):
-    def __init__(self, unpacker, absolute_position_ref, *args, **kwargs):
-        super(UnpackerReference, self).__init__(unpacker, InputBufferPartReference(absolute_position_ref),
-                                                *args, **kwargs)
-
-    def _args_repr(self):
-        return ", ".join(["buffer", "position"] + [safe_repr(arg) for arg in self.arg_refs[2:]])
-
-
-class FieldUnpackerReference(Reference):
-    def __init__(self, unpacker_ref):
-        self.unpacker_ref = unpacker_ref
-
-    def evaluate(self, ctx):
-        return self.unpacker_ref.evaluate(ctx)[0]
-
-    def __safe_repr__(self):
-        return "field_unpack({0})".format(self.unpacker_ref._func_repr())
-
-
-class NumericFieldUnpackerReference(FieldUnpackerReference, NumericReference):
-    pass
-
-
-class SequentialRangeListByteLengthReference(NumericFuncCallReference):
-    def __init__(self, arg):
-        super(SequentialRangeListByteLengthReference, self).__init__(SequentialRangeList.byte_length, arg)
-
-    def __safe_repr__(self):
-        return "byte_length_ref({0})".format(self._args_repr())
-
-
-class PackSequentialRangeListByteLengthReference(SequentialRangeListByteLengthReference):
-    """
-    A short-circuit to make sure we don't end up in a cyclic reference if the packing position depends on the packing
-    result.
-    """
-    def evaluate(self, ctx):
-        if self.arg_refs[0].is_open(ctx):
-            return None
-        else:
-            return super(PackSequentialRangeListByteLengthReference, self).evaluate(ctx)
-
-    def __safe_repr__(self):
-        return "pack_byte_length_ref({0})".format(self._args_repr())
-
-
-class FieldReferenceBuilder(object):
-    def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack,
-                 unpack_after, default):
-        self.numeric = numeric
-        self.set_before_pack = set_before_pack
-        self.set_after_unpack = set_after_unpack
-        self.where = where
-        self.where_when_pack = where_when_pack
-        self.where_when_unpack = where_when_unpack
-        self.unpack_after = unpack_after
-        self.default = default
-        self.pack_size = None
-        self.unpack_size = None
-
-        self.get_obj_from_ctx_ref = ContextGetAttrReference('obj')
-        self.set_and_get_class = NumericSetAndGetAttrReference if self.numeric else SetAndGetAttrReference
-
-        self.resolve_static_where()
-        self.create_field()
-        self.set_field_position()
-        self.set_field_pack_value_ref()
-
-    def resolve_static_where(self):
-        def resolve_static_ref(ref):
-            range_list = None
-            if ref.is_static():
-                range_list = ref(Context())
-            return range_list.byte_length() if range_list is not None else None
-
-        if self.where is not None:
-            assert self.where_when_pack is None and self.where_when_unpack is None
-            self.pack_size = self.unpack_size = resolve_static_ref(self.where)
-
-        if self.where_when_pack is not None:
-            assert self.where is None and self.where_when_unpack is not None
-            self.pack_size = resolve_static_ref(self.where_when_unpack)
-
-        if self.where_when_unpack is not None:
-            assert self.where is None and self.where_when_pack is not None
-            self.unpack_size = resolve_static_ref(self.where_when_unpack)
-
-        if self.pack_size is not None and self.unpack_size is not None:
-            assert self.pack_size == self.unpack_size
-
-    def create_field(self):
-        field_class = NumericFieldReference if self.numeric else FieldReference
-        self.field = field_class()
-        # When we first create a field reference we don't know the field name yet. When __new__ will get called
-        # on Buffer, it will fill it in for us.
-        self.field.attr_name_ref = ObjectReference(None)
-        self.field.default = self.default
-
-    def set_field_position(self):
-        if self.where is not None:
-            pack_position_ref = unpack_position_ref = self.where
-        else:
-            pack_position_ref = self.where_when_pack
-            unpack_position_ref = self.where_when_unpack
-
-        self.field.pack_absolute_position_ref = PackAbsolutePositionReference(self.field, pack_position_ref)
-        self.field.unpack_absolute_position_ref = UnpackAbsolutePositionReference(self.field, unpack_position_ref)
-
-    def set_packer(self, packer, **kwargs):
-        pack_kwargs = dict(byte_size=PackSequentialRangeListByteLengthReference(self.field.pack_absolute_position_ref),
-                           pack_size=self.pack_size)
-        pack_kwargs.update(kwargs)
-        self.field.pack_ref = FuncCallReference(packer, self.field.pack_value_ref, **pack_kwargs)
-
-    def set_unpacker(self, unpacker, **kwargs):
-        unpack_kwargs = dict(byte_size=SequentialRangeListByteLengthReference(self.field.unpack_absolute_position_ref),
-                             unpack_size=self.unpack_size)
-        unpack_kwargs.update(kwargs)
-
-        self.field.unpack_ref = UnpackerReference(unpacker, self.field.unpack_absolute_position_ref, **unpack_kwargs)
-
-    def create(self):
-        self.set_field_unpack_value_ref()
-        self.set_field_unpack_after()
-        return self.field
-
-    def set_field_pack_value_ref(self):
-        if self.set_before_pack is not None:
-            if not isinstance(self.set_before_pack, Reference):
-                if callable(self.set_before_pack):
-                    pack_value_class = NumericFuncCallReference if self.numeric else FuncCallReference
-                    pack_value_ref = pack_value_class(self.set_before_pack, self.get_obj_from_ctx_ref)
-                else:
-                    pack_value_class = NumberReference if self.numeric else ObjectReference
-                    pack_value_ref = pack_value_class(self.set_before_pack)
-            else:
-                pack_value_ref = self.set_before_pack
-            self.field.pack_value_ref = self.set_and_get_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref, pack_value_ref)
-        else:
-            getter_ref_class = NumericGetAttrReference if self.numeric else GetAttrReference
-            self.field.pack_value_ref = getter_ref_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref)
-
-    def set_field_unpack_value_ref(self):
-        if self.numeric:
-            field_unpack_ref = NumericFieldUnpackerReference(self.field.unpack_ref)
-        else:
-            field_unpack_ref = FieldUnpackerReference(self.field.unpack_ref)
-        if self.set_after_unpack is not None:
-            if not isinstance(self.set_after_unpack, Reference):
-                unpack_value_class = NumericFuncCallReference if self.numeric else FuncCallReference
-                unpack_value_ref = unpack_value_class(self.set_after_unpack, field_unpack_ref)
-        else:
-            unpack_value_ref = self.set_and_get_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref, field_unpack_ref)
-
-        self.field.unpack_value_ref = unpack_value_ref
-
-    def set_field_unpack_after(self):
-        if self.unpack_after is None:
-            self.unpack_after = []
-        elif not isinstance(self.unpack_after, (list, tuple)):
-            self.unpack_after = [self.unpack_after]
-
-        for unpack_after_field in self.unpack_after:
-            assert isinstance(unpack_after_field, FieldReference)
-
-        self.field.unpack_after = self.unpack_after
 
 
 def int_field(endian='native', sign='signed',
@@ -445,35 +265,22 @@ def list_field(type, n=None, unpack_selector=None,
     return builder.create()
 
 
-class AfterFieldReference(Reference, NumericReference):
-    def __init__(self, field_ref):
-        self.field_ref = field_ref
-
-    def evaluate(self, ctx):
-        offset = None
-        if ctx.is_pack():
-            offset = SequentialRangeList(self.field_ref.pack_absolute_position_ref(ctx)).max_stop()
-        else:
-            # This is a bit more tricky, since unpack_absolute_position_ref returns the length for the rest of the
-            # buffer if it contains an open range.
-            if self.field_ref.unpack_absolute_position_ref.is_open(ctx):
-                # It's an open range, so we need to limit it by checking the _actual_ byte size the field used to unpack.
-                # Since all reference results are cached, we can ask the unpack result again w/o performance problems.
-                _, byte_size = self.field_ref.unpack_ref(ctx)
-                position_list = self.field_ref.unpack_absolute_position_ref.unpack_position_ref(ctx)
-                # Since we want the "highest" byte, we need to sort the ranges.
-                offset = position_list.sorted().byte_offset(byte_size)
-            else:
-                offset = self.field_ref.unpack_absolute_position_ref(ctx).max_stop()
-        return offset
-
-    def __safe_repr__(self):
-        return "after({0})".format(self.field_ref.attr_name_ref(Context()))
-
-
 def after_ref(field_ref):
     return AfterFieldReference(field_ref)
 
 
 def member_func_ref(func):
     return FuncCallReference(func, ContextGetAttrReference('obj'))
+
+
+def len_ref(ref_or_str):
+    return LengthFuncCallReference(_make_field_ref(ref_or_str))
+
+
+def _make_field_ref(ref_or_str):
+    if isinstance(ref_or_str, Reference):
+        return ref_or_str
+    else:
+        # TODO Note that we can't determine whether the attribute is numeric or not at this stage - it will require a
+        # second pass to understand that.
+        return FieldOrAttrReference(ref_or_str)

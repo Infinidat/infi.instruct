@@ -1,6 +1,7 @@
 from infi.unittest import TestCase
 from infi.instruct.buffer.reference import Reference, NumericGetAttrReference, Context
-from infi.instruct.buffer.range import ByteRangeFactory, SequentialRange, SequentialRangeList
+from infi.instruct.buffer.range import SequentialRange, SequentialRangeList
+from infi.instruct.buffer.reference.range import ByteRangeFactory
 
 class ObjectContext(Context):
     def __init__(self, obj):

@@ -19,7 +19,7 @@ __all__ = [
     'int64', 'n_int64', 'b_int64', 'l_int64', 'uint64', 'n_uint64', 'b_uint64', 'l_uint64',
     'int_field', 'float_field', 'str_type', 'str_type_factory', 'str_field', 'buffer_field', 'list_field',
     'bytearray_field', 'be_int_field', 'le_int_field', 'bytes_ref', 'total_size', 'after_ref', 'member_func_ref',
-    'le_uint_field', 'be_uint_field', 'len_ref', 'self_ref'
+    'le_uint_field', 'be_uint_field', 'len_ref', 'self_ref', 'num_ref'
 ]
 JUSTIFY = ('left', 'right')
 
@@ -286,6 +286,7 @@ def _make_field_ref(ref_or_str):
     if isinstance(ref_or_str, Reference):
         return ref_or_str
     else:
-        # TODO Note that we can't determine whether the attribute is numeric or not at this stage - it will require a
-        # second pass to understand that.
-        return FieldOrAttrReference(ref_or_str)
+        # Note that we can't determine whether the attribute is numeric or not at this stage - it will require a
+        # second pass to understand that, so we say it's not numeric and the user will have to use num_ref() to cast it
+        # as numeric if needed.
+        return FieldOrAttrReference(False, ref_or_str)

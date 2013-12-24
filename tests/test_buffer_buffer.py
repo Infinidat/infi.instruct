@@ -498,3 +498,29 @@ class BufferTestCase(TestCase):
         f.b = 'he'
         self.assertEquals("\x00\x02he", f.pack())
 
+    def test_buffer_len_ref(self):
+        class Foo(Buffer):
+            s = str_field(where=bytes_ref[2:2 + num_ref(self_ref.a)])
+            a = be_int_field(where=bytes_ref[0:2], set_before_pack=len_ref(s))
+        f = Foo()
+        f.s = 'hello'
+        self.assertEquals('\x00\x05hello', f.pack())
+
+        f.unpack('\x00\x02hi')
+        self.assertEquals('hi', f.s)
+        self.assertEquals(2, f.a)
+
+    def test_buffer_call_func_ref(self):
+        class Foo(Buffer):
+            a = be_int_field(where=bytes_ref[0:1])
+            s = str_field(where=bytes_ref[1:1 + num_ref(self_ref.calc_s_size(a))])
+
+            def calc_s_size(self, a):
+                return a * 2
+
+        f = Foo(a=1, s='hello world')
+        self.assertEquals("\x01he", f.pack())
+
+        f.unpack("\x02hell")
+        self.assertEquals(f.a, 2)
+        self.assertEquals(f.s, "hell")

@@ -1,4 +1,4 @@
-from .reference import Reference, NumericReferenceMixin
+from .reference import Reference, ObjectReference
 
 
 class FieldReference(Reference):
@@ -14,6 +14,10 @@ class FieldReference(Reference):
     unpack_after = None
     default = None
 
+    def __init__(self, numeric, name):
+        super(FieldReference, self).__init__(numeric)
+        self.attr_name_ref = ObjectReference(False, name)
+
     def init(self, name):
         self.attr_name_ref.obj = name
 
@@ -25,14 +29,9 @@ class FieldReference(Reference):
 
     def evaluate(self, ctx):
         if ctx.is_pack():
-            return self.pack_value_ref(ctx)
+            return self.pack_value_ref.deref(ctx)
         else:
-            return self.unpack_value_ref(ctx)
+            return self.unpack_value_ref.deref(ctx)
 
     def __safe_repr__(self):
         return "field_ref({0!r})".format(self.attr_name_ref.obj)
-
-
-class NumericFieldReference(FieldReference, NumericReferenceMixin):
-    def __safe_repr__(self):
-        return "num_field_ref({0!r})".format(self.attr_name_ref.obj)

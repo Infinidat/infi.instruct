@@ -1,39 +1,29 @@
 import itertools
 
 from .io_buffer import InputBuffer, OutputBuffer
-from .reference import (Reference, Context, NumericReferenceMixin, ContextGetAttrReference, ObjectReference,
-                        FuncCallReference, NumericFuncCallReference, NumberReference,
-                        FieldReference, NumericFieldReference,
-                        assign_ref_class, getattr_ref_class, func_call_ref_class)
+from .reference import (Reference, Context, ContextGetAttrReference, ObjectReference,
+                        FuncCallReference, FieldReference, GetAttrReference, AssignAttrReference)
 from .range import SequentialRangeList
-
-
-
-def field_ref_class(is_numeric):
-    return NumericFieldReference if is_numeric else FieldReference
-
-
-def new_field_ref(is_numeric):
-    return field_ref_class(is_numeric)()
 
 
 class PackAbsolutePositionReference(Reference):
     def __init__(self, field, pack_position_ref):
+        super(PackAbsolutePositionReference, self).__init__(False)
         self.field = field
         self.pack_position_ref = pack_position_ref
 
     def is_open(self, ctx):
-        return self.pack_position_ref(ctx).is_open()
+        return self.pack_position_ref.deref(ctx).is_open()
 
     def evaluate(self, ctx):
-        position_list = self.pack_position_ref(ctx)
+        position_list = self.pack_position_ref.deref(ctx)
         if position_list.has_overlaps():
             raise ValueError("field position list has overlapping ranges")
 
         if position_list.is_open():
             # We need the serialization result of this field to set the range. Note that we already checked if the
             # position has overlapping ranges, so there may be only a single open range.
-            packed_field = self.field.pack_ref(ctx)
+            packed_field = self.field.pack_ref.deref(ctx)
             current_length = 0
             absolute_position_list = []
             for pos in position_list:
@@ -50,14 +40,15 @@ class PackAbsolutePositionReference(Reference):
 
 class UnpackAbsolutePositionReference(Reference):
     def __init__(self, field, unpack_position_ref):
+        super(UnpackAbsolutePositionReference, self).__init__(False)
         self.field = field
         self.unpack_position_ref = unpack_position_ref
 
     def is_open(self, ctx):
-        return self.unpack_position_ref(ctx).is_open()
+        return self.unpack_position_ref.deref(ctx).is_open()
 
     def evaluate(self, ctx):
-        position_list = self.unpack_position_ref(ctx)
+        position_list = self.unpack_position_ref.deref(ctx)
         if position_list.has_overlaps():
             raise ValueError("field position list has overlapping ranges")
 
@@ -73,18 +64,19 @@ class UnpackAbsolutePositionReference(Reference):
 
 class InputBufferPartReference(Reference):
     def __init__(self, position_ref):
+        super(InputBufferPartReference, self).__init__(False)
         self.position_ref = position_ref
 
     def evaluate(self, ctx):
-        return ctx.input_buffer.get(self.position_ref(ctx))
+        return ctx.input_buffer.get(self.position_ref.deref(ctx))
 
     def __safe_repr__(self):
         return "input_buffer[{0!r}]".format(self.position_ref)
 
 
 class UnpackerReference(FuncCallReference):
-    def __init__(self, unpacker, absolute_position_ref, *args, **kwargs):
-        super(UnpackerReference, self).__init__(unpacker, InputBufferPartReference(absolute_position_ref),
+    def __init__(self, numeric, unpacker, absolute_position_ref, *args, **kwargs):
+        super(UnpackerReference, self).__init__(numeric, unpacker, InputBufferPartReference(absolute_position_ref),
                                                 *args, **kwargs)
 
     def _args_repr(self):
@@ -93,6 +85,7 @@ class UnpackerReference(FuncCallReference):
 
 class FieldUnpackerReference(Reference):
     def __init__(self, unpacker_ref):
+        super(FieldUnpackerReference, self).__init__(unpacker_ref.is_numeric())
         self.unpacker_ref = unpacker_ref
 
     def evaluate(self, ctx):
@@ -102,13 +95,9 @@ class FieldUnpackerReference(Reference):
         return "field_unpack({0})".format(self.unpacker_ref._func_repr())
 
 
-class NumericFieldUnpackerReference(FieldUnpackerReference, NumericReferenceMixin):
-    pass
-
-
-class SequentialRangeListByteLengthReference(NumericFuncCallReference):
+class SequentialRangeListByteLengthReference(FuncCallReference):
     def __init__(self, arg):
-        super(SequentialRangeListByteLengthReference, self).__init__(SequentialRangeList.byte_length, arg)
+        super(SequentialRangeListByteLengthReference, self).__init__(True, SequentialRangeList.byte_length, arg)
 
     def __safe_repr__(self):
         return "byte_length_ref({0})".format(self._args_repr())
@@ -144,8 +133,7 @@ class FieldReferenceBuilder(object):
         self.pack_size = None
         self.unpack_size = None
 
-        self.get_obj_from_ctx_ref = ContextGetAttrReference('obj')
-        self.assign_attr_class = assign_ref_class(self.numeric)
+        self.get_obj_from_ctx_ref = ContextGetAttrReference(False, 'obj')
 
         self.resolve_static_where()
         self.create_field()
@@ -156,7 +144,7 @@ class FieldReferenceBuilder(object):
         def resolve_static_ref(ref):
             range_list = None
             if ref.is_static():
-                range_list = ref(Context())
+                range_list = ref.deref(Context())
             return range_list.byte_length() if range_list is not None else None
 
         if self.where is not None:
@@ -177,8 +165,7 @@ class FieldReferenceBuilder(object):
     def create_field(self):
         # When we first create a field reference we don't know the field name yet. When __new__ will get called
         # on Buffer, it will fill it in for us.
-        self.field = new_field_ref(self.numeric)
-        self.field.attr_name_ref = ObjectReference(None)
+        self.field = FieldReference(self.numeric, None)
         self.field.default = self.default
 
     def set_field_position(self):
@@ -195,14 +182,15 @@ class FieldReferenceBuilder(object):
         pack_kwargs = dict(byte_size=PackSequentialRangeListByteLengthReference(self.field.pack_absolute_position_ref),
                            pack_size=self.pack_size)
         pack_kwargs.update(kwargs)
-        self.field.pack_ref = FuncCallReference(packer, self.field.pack_value_ref, **pack_kwargs)
+        self.field.pack_ref = FuncCallReference(self.numeric, packer, self.field.pack_value_ref, **pack_kwargs)
 
     def set_unpacker(self, unpacker, **kwargs):
         unpack_kwargs = dict(byte_size=SequentialRangeListByteLengthReference(self.field.unpack_absolute_position_ref),
                              unpack_size=self.unpack_size)
         unpack_kwargs.update(kwargs)
 
-        self.field.unpack_ref = UnpackerReference(unpacker, self.field.unpack_absolute_position_ref, **unpack_kwargs)
+        self.field.unpack_ref = UnpackerReference(self.numeric, unpacker, self.field.unpack_absolute_position_ref,
+                                                  **unpack_kwargs)
 
     def create(self):
         self.set_field_unpack_value_ref()
@@ -213,29 +201,25 @@ class FieldReferenceBuilder(object):
         if self.set_before_pack is not None:
             if not isinstance(self.set_before_pack, Reference):
                 if callable(self.set_before_pack):
-                    pack_value_class = func_call_ref_class(self.numeric)
-                    pack_value_ref = pack_value_class(self.set_before_pack, self.get_obj_from_ctx_ref)
+                    pack_value_ref = FuncCallReference(self.numeric, self.set_before_pack, self.get_obj_from_ctx_ref)
                 else:
-                    pack_value_class = NumberReference if self.numeric else ObjectReference
-                    pack_value_ref = pack_value_class(self.set_before_pack)
+                    pack_value_ref = ObjectReference(self.numeric, self.set_before_pack)
             else:
                 pack_value_ref = self.set_before_pack
-            self.field.pack_value_ref = self.assign_attr_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref, pack_value_ref)
+            self.field.pack_value_ref = AssignAttrReference(self.numeric, self.get_obj_from_ctx_ref,
+                                                            self.field.attr_name_ref, pack_value_ref)
         else:
-            getter_ref_class = getattr_ref_class(self.numeric)
-            self.field.pack_value_ref = getter_ref_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref)
+            self.field.pack_value_ref = GetAttrReference(self.numeric, self.get_obj_from_ctx_ref,
+                                                         self.field.attr_name_ref)
 
     def set_field_unpack_value_ref(self):
-        if self.numeric:
-            field_unpack_ref = NumericFieldUnpackerReference(self.field.unpack_ref)
-        else:
-            field_unpack_ref = FieldUnpackerReference(self.field.unpack_ref)
+        field_unpack_ref = FieldUnpackerReference(self.field.unpack_ref)
         if self.set_after_unpack is not None:
             if not isinstance(self.set_after_unpack, Reference):
-                unpack_value_class = func_call_ref_class(self.numeric)
-                unpack_value_ref = unpack_value_class(self.set_after_unpack, field_unpack_ref)
+                unpack_value_ref = FuncCallReference(self.numeric, self.set_after_unpack, field_unpack_ref)
         else:
-            unpack_value_ref = self.assign_attr_class(self.get_obj_from_ctx_ref, self.field.attr_name_ref, field_unpack_ref)
+            unpack_value_ref = AssignAttrReference(self.numeric, self.get_obj_from_ctx_ref, self.field.attr_name_ref,
+                                                   field_unpack_ref)
 
         self.field.unpack_value_ref = unpack_value_ref
 

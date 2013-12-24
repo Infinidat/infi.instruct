@@ -3,7 +3,8 @@ from infi.instruct.utils.kwargs import keep_kwargs_partial
 from infi.instruct.utils.safe_repr import safe_repr
 
 from .reference import (Reference, ContextGetAttrReference, FuncCallReference, LengthFuncCallReference,
-                        TotalSizeReference, AfterFieldReference, FieldOrAttrReference, SelfProxy, ByteRangeFactory)
+                        TotalSizeReference, AfterFieldReference, FieldOrAttrReference, SelfProxy, ByteRangeFactory,
+                        NumericCastReference)
 from .field_reference_builder import FieldReferenceBuilder
 
 from .buffer import BufferType
@@ -200,7 +201,7 @@ def unpack_selector_decorator(selector):
             return None, 0
         else:
             assert False, "selector didn't return a Buffer type, a pair of (obj, byte_size) or None, instead it returned {0!r}".format(o)
-    return FuncCallReference(partial, my_selector, ContextGetAttrReference('obj'))
+    return FuncCallReference(False, partial, my_selector, ContextGetAttrReference(False, 'obj'))
 
 
 def buffer_field(type,
@@ -266,15 +267,19 @@ def list_field(type, n=None, unpack_selector=None,
 
 
 def after_ref(field_ref):
-    return AfterFieldReference(field_ref)
+    return AfterFieldReference(field_ref.is_numeric(), field_ref)
 
 
 def member_func_ref(func):
-    return FuncCallReference(func, ContextGetAttrReference('obj'))
+    return FuncCallReference(False, func, ContextGetAttrReference(False, 'obj'))
 
 
 def len_ref(ref_or_str):
     return LengthFuncCallReference(_make_field_ref(ref_or_str))
+
+
+def num_ref(ref):
+    return NumericCastReference(ref)
 
 
 def _make_field_ref(ref_or_str):

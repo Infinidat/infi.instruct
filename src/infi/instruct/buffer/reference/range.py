@@ -3,9 +3,12 @@ import operator
 from infi.instruct.utils.safe_repr import safe_repr
 from infi.instruct.buffer.range import BIT, SequentialRange, SequentialRangeList
 
-from .reference import Reference, NumericReferenceMixin
+from .reference import Reference
 
 class RangeReference(Reference):
+    def __init__(self):
+        super(RangeReference, self).__init__(False)
+
     def __add__(self, other):
         me = self.list if isinstance(self, ListRangeReference) else [self]
         if isinstance(other, ListRangeReference):
@@ -29,7 +32,7 @@ class ListRangeReference(RangeReference):
         self.list = [Reference.to_ref(obj) for obj in l]
 
     def evaluate(self, ctx):
-        return SequentialRangeList(reduce(operator.add, [ref(ctx) for ref in self.list]))
+        return SequentialRangeList(reduce(operator.add, [ref.deref(ctx) for ref in self.list]))
 
     def __safe_repr__(self):
         return "[{0}]".format(", ".join(safe_repr(o for o in self.list)))
@@ -60,7 +63,7 @@ class ByteSliceRangeReference(BitContainer, RangeReference):
         self.stop = Reference.to_ref(slic.stop)
 
     def evaluate(self, ctx):
-        return SequentialRangeList([SequentialRange(self.start(ctx), self.stop(ctx))])
+        return SequentialRangeList([SequentialRange(self.start.deref(ctx), self.stop.deref(ctx))])
 
     def __safe_repr__(self):
         return "[{0!r}:{1!r}]".format(safe_repr(self.start), safe_repr(self.stop))
@@ -73,7 +76,7 @@ class ByteNumericRangeReference(BitContainer, RangeReference):
         self.ref = Reference.to_ref(ref)
 
     def evaluate(self, ctx):
-        index = self.ref(ctx)
+        index = self.ref.deref(ctx)
         assert index >= 0
         return SequentialRangeList([SequentialRange(index, index + 1)])
 
@@ -87,7 +90,7 @@ class ByteRangeFactory(object):
             return ByteListRangeReference([self.__getitem__(loc_elem) for loc_elem in loc])
         if isinstance(loc, slice):
             return ByteSliceRangeReference(loc)
-        if isinstance(loc, (NumericReferenceMixin, int, long)):
+        if isinstance(loc, (int, long)) or (isinstance(loc, Reference) and loc.is_numeric()):
             return ByteNumericRangeReference(loc)
         raise TypeError("{0} is not a supported index type".format(repr(loc)))
 
@@ -104,15 +107,15 @@ class BitNumericRangeReference(BitRangeReference):
         self.ref = Reference.to_ref(ref)
 
     def evaluate(self, ctx):
-        range_list = self.parent_range_ref(ctx)
+        range_list = self.parent_range_ref.deref(ctx)
         assert len(range_list) >= 1
 
-        byte_offset = float(self.ref(ctx)) / 8
+        byte_offset = float(self.ref.deref(ctx)) / 8
         assert byte_offset >= 0
 
         i, sum_length = range_list.find_relative_container_index(byte_offset)
         if i is None:
-            raise ValueError("Bit offset {0} is out of range for range sequence {1!r}".format(self.ref(ctx),
+            raise ValueError("Bit offset {0} is out of range for range sequence {1!r}".format(self.ref.deref(ctx),
                                                                                               range_list))
         return SequentialRangeList([SequentialRange(byte_offset - sum_length + range_list[i].start,
                                                     byte_offset - sum_length + range_list[i].start + BIT)])
@@ -133,10 +136,10 @@ class BitSliceRangeReference(BitRangeReference):
         self.stop = Reference.to_ref(slic.stop)
 
     def evaluate(self, ctx):
-        range_list = self.parent_range_ref(ctx)
+        range_list = self.parent_range_ref.deref(ctx)
         assert len(range_list) >= 1
 
-        bit_range = SequentialRange(float(self.start(ctx)) / 8, float(self.stop(ctx)) / 8)
+        bit_range = SequentialRange(float(self.start.deref(ctx)) / 8, float(self.stop.deref(ctx)) / 8)
 
         i, sum_length = range_list.find_relative_container_index(bit_range.start)
         if i is None:
@@ -181,6 +184,6 @@ class BitRangeFactory(object):
             return ListRangeReference([self.__getitem__(loc_elem) for loc_elem in loc])
         if isinstance(loc, slice):
             return BitSliceRangeReference(self.parent_range_ref, loc)
-        if isinstance(loc, (NumericReferenceMixin, int, long)):
+        if isinstance(loc, (int, long)) or (isinstance(loc, Reference) and loc.is_numeric()):
             return BitNumericRangeReference(self.parent_range_ref, loc)
         raise TypeError("{0} is not a supported index type".format(repr(loc)))

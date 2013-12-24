@@ -5,8 +5,7 @@ from infi import exceptools
 from ..errors import InstructError
 
 from .range import SequentialRangeList
-from .reference import (Reference, NumericReferenceMixin, FieldReference, PackContext, UnpackContext,
-                        TotalSizeReference)
+from .reference import Reference, FieldReference, PackContext, UnpackContext, TotalSizeReference
 from .io_buffer import InputBuffer, OutputBuffer
 
 
@@ -64,7 +63,7 @@ class BufferType(type):
                 if not (field.pack_absolute_position_ref.is_static()
                         and field.unpack_absolute_position_ref.is_static()):
                     return None
-                positions.extend(field.pack_absolute_position_ref(ctx))
+                positions.extend(field.pack_absolute_position_ref.deref(ctx))
             except:
                 raise exceptools.chain(InstructBufferError("Error while calculating static byte size", ctx,
                                                            class_name, field.attr_name()))
@@ -95,7 +94,7 @@ class Buffer(object):
 
         for field in fields:
             try:
-                ctx.output_buffer.set(field.pack_ref(ctx), field.pack_absolute_position_ref(ctx))
+                ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
             except:
                 raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self), field.attr_name()))
 
@@ -122,8 +121,8 @@ class Buffer(object):
             try:
                 # TODO: get rid of unpack_after once we use dependencies as we should.
                 for prev_field in field.unpack_after:
-                    prev_field.unpack_value_ref(ctx)
-                field.unpack_value_ref(ctx)
+                    prev_field.unpack_value_ref.deref(ctx)
+                field.unpack_value_ref.deref(ctx)
             except:
                 raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 
@@ -135,7 +134,7 @@ class Buffer(object):
         """
         if ctx is None:
             ctx = PackContext(self, type(self).__fields__)
-        return TotalSizeReference()(ctx)
+        return TotalSizeReference().deref(ctx)
 
     def _all_fields(self):
         fields = []

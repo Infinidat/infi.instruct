@@ -53,16 +53,18 @@ class Reference(object):
     """
     An abstract reference. A reference is an object that will be resolved during packing or unpacking.
     This base class provides some convenience methods to handle references and expects subclasses to implement
-    the value(obj) method.
+    the evaluate(context) method.
 
     Be sure to override the following methods:
      * evaluate(self, ctx)
      * __safe_repr__(self)
     """
+    def __init__(self, numeric):
+        self.numeric = numeric
 
-    def __call__(self, ctx):
+    def deref(self, ctx):
         """
-        Returns the value this reference is pointing to. This method uses 'obj' to resolve the reference and return
+        Returns the value this reference is pointing to. This method uses 'ctx' to resolve the reference and return
         the value this reference references.
         If the call was already made, it returns a cached result.
         It also makes sure there's no cyclic reference, and if so raises CyclicReferenceError.
@@ -92,6 +94,9 @@ class Reference(object):
         raise NotImplementedError("Reference is an abstract class, you need to override evaluate(self, ctx) in {0}".
                                   format(type(self)))
 
+    def is_numeric(self):
+        return self.numeric
+
     def __safe_repr__(self):
         raise NotImplementedError("Reference is an abstract class, you need to override __safe_repr__(self) in {0}".
                                   format(type(self)))
@@ -106,9 +111,7 @@ class Reference(object):
     def to_ref(self, ref):
         if isinstance(ref, Reference):
             return ref
-        if isinstance(ref, Number):
-            return NumberReference(ref)
-        return ObjectReference(ref)
+        return ObjectReference(isinstance(ref, Number), ref)
 
     def is_static(self):
         # We want to see if this reference can resolve w/o external dependencies, i.e. doesn't need anything from
@@ -123,91 +126,91 @@ class Reference(object):
 
         ctx = StaticContext()
         try:
-            self(ctx)
+            self.deref(ctx)
             return True
         except NotStaticObjectError:
             return False
 
-
-class NumericReferenceMixin(object):
-    """
-    A numeric reference is a mixin that adds support for arithmetic operators, such as add/sub.
-    It supports operations on itself (NumericReferenceMixin) and operations involving numbers and numeric references.
-    """
+    def __check_binary_expression_for_numeric(self, other):
+        return self.is_numeric() and isinstance(other, Number)or (isinstance(other, Reference) and other.is_numeric())
 
     def __add__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(self, other, operator.add)
 
     def __radd__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(other, self, operator.add)
 
     def __sub__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(self, other, operator.sub)
 
     def __rsub__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(other, self, operator.sub)
 
     def __mul__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(self, other, operator.mul)
 
     def __rmul__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(other, self, operator.mul)
 
     def __div__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(self, other, operator.div)
 
     def __rdiv__(self, other):
-        if not isinstance(other, (Number, NumericReferenceMixin)):
+        if not self.__check_binary_expression_for_numeric(other):
             return NotImplemented
         return NumericBinaryExpression(other, self, operator.div)
 
     def __neg__(self):
+        if not self.is_numeric():
+            return NotImplemented
         return NumericUnaryExpression(self, operator.neg)
 
     # FIXME: add rest of the operators, including unary ones
 
 
-class NumericUnaryExpression(Reference, NumericReferenceMixin):
+class NumericUnaryExpression(Reference):
     """
     Unary expression support for references, e.g. -ref('field').
     """
     def __init__(self, ref, operator):
+        super(NumericUnaryExpression, self).__init__(numeric=True)
         self.ref = Reference.to_ref(ref)
         self.operator = operator
 
     def evaluate(self, ctx):
-        return self.operator(self.ref(ctx))
+        return self.operator(self.ref.deref(ctx))
 
     def __safe_repr__(self):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "{0}({1!r})".format(op_sym, self.ref)
 
 
-class NumericBinaryExpression(Reference, NumericReferenceMixin):
+class NumericBinaryExpression(Reference):
     """
     Binary expression support for references, e.g. ref('field') + 6.
     """
     def __init__(self, a, b, operator):
+        super(NumericBinaryExpression, self).__init__(numeric=True)
         self.a = Reference.to_ref(a)
         self.b = Reference.to_ref(b)
         self.operator = operator
 
     def evaluate(self, ctx):
-        return self.operator(self.a(ctx), self.b(ctx))
+        return self.operator(self.a.deref(ctx), self.b.deref(ctx))
 
     def __safe_repr__(self):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
@@ -217,7 +220,8 @@ class NumericBinaryExpression(Reference, NumericReferenceMixin):
 class ObjectReference(Reference):
     """Holds a reference to an object."""
 
-    def __init__(self, obj):
+    def __init__(self, numeric, obj):
+        super(ObjectReference, self).__init__(numeric)
         self.obj = obj
 
     def evaluate(self, ctx):
@@ -227,8 +231,13 @@ class ObjectReference(Reference):
         return "ref({0!r})".format(self.obj)
 
 
-class NumberReference(ObjectReference, NumericReferenceMixin):
-    """Holds a reference to an object that we know is also a number."""
+class NumericCastReference(Reference):
+    def __init__(self, ref):
+        super(NumericCastReference, self).__init__(True)
+        self.ref = ref
+
+    def evaluate(self, ctx):
+        return self.ref.deref(ctx)
 
     def __safe_repr__(self):
-        return "num_ref({0!r})".format(self.obj)
+        return "numeric({0!r})".format(self.ref)

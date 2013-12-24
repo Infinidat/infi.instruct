@@ -2,8 +2,8 @@ import struct
 from bitarray import bitarray
 from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
-from infi.instruct.buffer.macros import int_field, float_field, str_field, buffer_field, list_field
-from infi.instruct.buffer.macros import bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref
+from infi.instruct.buffer.macros import (int_field, float_field, str_field, buffer_field, list_field,
+                                         bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref, num_ref)
 from infi.exceptools import *
 
 
@@ -473,3 +473,28 @@ class BufferTestCase(TestCase):
 
         b = "\x00\x0bhello world" + junk_generator(0x10000)
         f.unpack(b)
+
+    def test_buffer_unpack_error(self):
+        class Foo(Buffer):
+            l = be_int_field(where=bytes_ref[0:2], set_before_pack=len_ref(self_ref.s))
+            s = str_field(where=bytes_ref[2:2 + l])
+        f = Foo()
+        with self.assertRaises(InstructBufferError):
+            f.unpack("\x00\x051234")  # missing one byte
+
+    def test_buffer_unpack_non_numeric(self):
+        with self.assertRaises(TypeError):
+            class Foo(Buffer):
+                a = str_field(where=bytes_ref[0:2], set_before_pack='  ')
+                b = str_field(where=bytes_ref[2:2 + a])
+
+    def test_buffer_numeric_cast(self):
+        class Foo(Buffer):
+             a = be_int_field(where=bytes_ref[0:2])
+             b = str_field(where=bytes_ref[2:2 + num_ref(self_ref.a)])
+
+        f = Foo()
+        f.a = 2
+        f.b = 'he'
+        self.assertEquals("\x00\x02he", f.pack())
+

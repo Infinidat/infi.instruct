@@ -1,20 +1,21 @@
 from infi.instruct.utils.safe_repr import safe_repr
-from .reference import Reference, NumericReferenceMixin
+from .reference import Reference
 
 
 class FuncCallReference(Reference):
     """Holds a reference to a function call that will get executed when resolving."""
 
-    def __init__(self, func, *args, **kwargs):
+    def __init__(self, numeric, func, *args, **kwargs):
+        super(FuncCallReference, self).__init__(numeric)
         self.func_ref = Reference.to_ref(func)
         self.arg_refs = [Reference.to_ref(arg) for arg in args]
         self.kwarg_refs = dict((k, Reference.to_ref(v)) for k, v in kwargs.items())
 
     def evaluate(self, ctx):
-        func = self.func_ref(ctx)
+        func = self.func_ref.deref(ctx)
         assert callable(func), "func {0!r} from func_ref {1!r} is not callable".format(func, self.func_ref)
-        args = [arg_ref(ctx) for arg_ref in self.arg_refs]
-        kwargs = dict((k, v_ref(ctx)) for k, v_ref in self.kwarg_refs.items())
+        args = [arg_ref.deref(ctx) for arg_ref in self.arg_refs]
+        kwargs = dict((k, v_ref.deref(ctx)) for k, v_ref in self.kwarg_refs.items())
         return func(*args, **kwargs)
 
     def __safe_repr__(self):
@@ -37,10 +38,3 @@ class FuncCallReference(Reference):
 
     def _kwargs_repr(self):
         return ", ".join("{0}={1}".format(k, safe_repr(v_ref)) for k, v_ref in self.kwarg_refs.items())
-
-
-class NumericFuncCallReference(FuncCallReference, NumericReferenceMixin):
-    """Holds a reference to a function call that returns a number."""
-
-    def __safe_repr__(self):
-        return "num_func_ref({0})".format(self._func_repr())

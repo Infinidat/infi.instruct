@@ -2,10 +2,13 @@ import itertools
 
 from infi.instruct.buffer.range import SequentialRangeList
 
-from .reference import Reference, NumericReferenceMixin
+from .reference import Reference
 
 
-class TotalSizeReference(Reference, NumericReferenceMixin):
+class TotalSizeReference(Reference):
+    def __init__(self):
+        super(TotalSizeReference, self).__init__(True)
+
     def evaluate(self, ctx):
         # First, we'll try a shortcut - if the size is static, we'll return that since we precalculated it.
         size = getattr(type(ctx.obj), 'byte_size', None)
@@ -13,7 +16,7 @@ class TotalSizeReference(Reference, NumericReferenceMixin):
             return size
 
         if ctx.is_pack():
-            lists = [field.pack_absolute_position_ref(ctx) for field in ctx.fields]
+            lists = [field.pack_absolute_position_ref.deref(ctx) for field in ctx.fields]
             positions = SequentialRangeList(itertools.chain(*lists))
             result = positions.max_stop()  # total_size calculation
         else:
@@ -23,7 +26,8 @@ class TotalSizeReference(Reference, NumericReferenceMixin):
         return result
 
     def _unpack_position_list_for_field(self, ctx, field):
-        result = field.unpack_absolute_position_ref.unpack_position_ref(ctx).byte_offset(field.unpack_ref(ctx)[1])
+        _, size = field.unpack_ref.deref(ctx)
+        result = field.unpack_absolute_position_ref.unpack_position_ref.deref(ctx).byte_offset(size)
         return result
 
     def __safe_repr__(self):

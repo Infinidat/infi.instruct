@@ -43,6 +43,8 @@ class UnpackContext(BufferContext):
 
 class ReturnContextReference(Reference):
     """A reference that evaluates to the context itself (useful when using FuncCallReference)."""
+    def __init__(self):
+        super(ReturnContextReference, self).__init__(False)
 
     def evaluate(self, ctx):
         return ctx
@@ -54,5 +56,5 @@ class ReturnContextReference(Reference):
 class ContextGetAttrReference(GetAttrReference):
     """A reference that returns an attribute from the context."""
 
-    def __init__(self, attr_name):
-        super(ContextGetAttrReference, self).__init__(ReturnContextReference(), attr_name)
+    def __init__(self, numeric, attr_name):
+        super(ContextGetAttrReference, self).__init__(numeric, ReturnContextReference(), attr_name)

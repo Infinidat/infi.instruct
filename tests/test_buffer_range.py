@@ -1,6 +1,7 @@
 from infi.unittest import TestCase
-from infi.instruct.buffer.reference import Reference, NumericGetAttrReference, Context
-from infi.instruct.buffer.range import ByteRangeFactory, SequentialRange, SequentialRangeList
+from infi.instruct.buffer.reference import Reference, GetAttrReference, Context
+from infi.instruct.buffer.range import SequentialRange, SequentialRangeList
+from infi.instruct.buffer.reference.range import ByteRangeFactory
 
 class ObjectContext(Context):
     def __init__(self, obj):
@@ -8,6 +9,9 @@ class ObjectContext(Context):
         self.obj = obj
 
 class ObjectContextReference(Reference):
+    def __init__(self):
+        super(ObjectContextReference, self).__init__(False)
+
     def evaluate(self, ctx):
         return ctx.obj
 
@@ -23,36 +27,36 @@ bytes_ref = ByteRangeFactory()
 
 class RangeTestCase(TestCase):
     def test_range_factory__slice_range_reference(self):
-        range1 = bytes_ref[1:NumericGetAttrReference(ObjectContextReference(), 'n')]
+        range1 = bytes_ref[1:GetAttrReference(True, ObjectContextReference(), 'n')]
         ctx = ObjectContext(NumberHolder(10))
-        self.assertEqualRangeList([ (1, 10) ], range1(ctx))
+        self.assertEqualRangeList([ (1, 10) ], range1.deref(ctx))
 
     def test_range_factory__slice_range_reference_binary_numeric_expression(self):
-        range1 = bytes_ref[1:NumericGetAttrReference(ObjectContextReference(), 'n') + 5]
+        range1 = bytes_ref[1:GetAttrReference(True, ObjectContextReference(), 'n') + 5]
         ctx = ObjectContext(NumberHolder(10))
-        self.assertEqualRangeList([ (1, 15) ], range1(ctx))
+        self.assertEqualRangeList([ (1, 15) ], range1.deref(ctx))
 
     def test_range_factory__numeric_reference_binary_numeric_expression(self):
-        range1 = bytes_ref[NumericGetAttrReference(ObjectContextReference(), 'n') + 5]
+        range1 = bytes_ref[GetAttrReference(True, ObjectContextReference(), 'n') + 5]
         ctx = ObjectContext(NumberHolder(10))
-        self.assertEqualRangeList([ (15, 16) ], range1(ctx))
+        self.assertEqualRangeList([ (15, 16) ], range1.deref(ctx))
 
     def test_range_factory__list_range_reference(self):
         range1 = bytes_ref[1, 5, 7]
-        self.assertEqualRangeList([ (1, 2), (5, 6), (7, 8) ], range1(Context()))
+        self.assertEqualRangeList([ (1, 2), (5, 6), (7, 8) ], range1.deref(Context()))
 
     def test_range_factory__slice_and_list(self):
         range1 = bytes_ref[1:4, 5, 7]
-        self.assertEqualRangeList([ (1, 4), (5, 6), (7, 8) ], range1(Context()))
+        self.assertEqualRangeList([ (1, 4), (5, 6), (7, 8) ], range1.deref(Context()))
 
     def test_bit__numeric(self):
         range1 = bytes_ref[3:4].bits[5]
-        self.assertEqualRangeList([ (3 + 5.0 / 8, 3 + 6.0 / 8) ], range1(Context()))
+        self.assertEqualRangeList([ (3 + 5.0 / 8, 3 + 6.0 / 8) ], range1.deref(Context()))
 
     def test_bit__numeric_out_of_range(self):
         range1 = bytes_ref[3:4].bits[5:9]
         with self.assertRaises(ValueError):
-            range1(Context())
+            range1.deref(Context())
 
     def test_sequential_range_list_length(self):
         self.assertEqual(6, SequentialRangeList([ SequentialRange(0, 4), SequentialRange(1, 3) ]).byte_length())

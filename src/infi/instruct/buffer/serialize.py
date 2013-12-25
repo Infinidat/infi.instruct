@@ -200,6 +200,9 @@ def unpack_str(buffer, **kwargs):
     justify = args['justify']
     padding = args['padding']
     byte_size = kwargs_int_byte_size(args)
+    if byte_size and len(buffer) < byte_size:
+        raise ValueError("str byte_size is {} but got buffer with len {}".format(byte_size, len(buffer)))
+
     value = str(buffer[0:byte_size]).decode(args['encoding'])
     if byte_size is not None:
         if justify == 'left':

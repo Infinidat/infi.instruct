@@ -270,7 +270,10 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
 
 class InputBuffer(object):
     def __init__(self, buffer):
-        self.buffer = BitView(buffer)
+        if isinstance(buffer, BitView):
+            self.buffer = buffer
+        else:
+            self.buffer = BitView(buffer)
 
     def get(self, range_list):
         if len(range_list) == 1:
@@ -294,8 +297,16 @@ class InputBuffer(object):
 
 
 class OutputBuffer(object):
-    def __init__(self):
-        self.buffer = BitAwareByteArray(bytearray())
+    def __init__(self, buffer=None):
+        if isinstance(buffer, BitAwareByteArray):
+            self.buffer = buffer
+        elif isinstance(buffer, bytearray):
+            self.buffer = BitAwareByteArray(buffer)
+        elif buffer is None:
+            self.buffer = BitAwareByteArray(bytearray())
+        else:
+            raise TypeError("buffer must be either BitAwareByteArray, bytearray or None but instead is {0}".
+                            format(type(buffer)))
 
     def set(self, value, range_list):
         value = BitView(value)
@@ -304,11 +315,11 @@ class OutputBuffer(object):
         for range in range_list:
             assert not range.is_open()
             assert range.start >= 0 and range.start <= range.stop
-            if range.length() > len(value) - value_start:
+            if range.byte_length() > len(value) - value_start:
                 raise ValueError("trying to assign a value with smaller length than the range it's given")
             self.buffer.zfill(range.start)
-            self.buffer[range.start:range.stop] = value[value_start:value_start + range.length()]
-            value_start += range.length()
+            self.buffer[range.start:range.stop] = value[value_start:value_start + range.byte_length()]
+            value_start += range.byte_length()
 
     def get(self):
         return self.buffer

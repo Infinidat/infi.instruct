@@ -2,7 +2,8 @@ import math
 import itertools
 
 from infi import exceptools
-from ..errors import InstructError
+from infi.instruct.utils.safe_repr import safe_repr
+from infi.instruct.errors import InstructError
 
 from .range import SequentialRangeList
 from .reference import Reference, FieldReference, PackContext, UnpackContext, TotalSizeReference
@@ -11,14 +12,20 @@ from .io_buffer import InputBuffer, OutputBuffer
 
 class InstructBufferError(InstructError):
     MESSAGE = """{error_msg} - attribute '{attr_name}' in class '{clazz}':
+  Resolved References:
+{resolved_references}
+
   Instruct internal call stack:
 {context_call_stack}"""
 
     def __init__(self, error_msg, ctx, clazz, attr_name):
         # Format the context call stack, so it will be clearer.
         context_call_stack = "\n".join(["    {0}".format(line) for line in ctx.format_exception_call_stack()])
+        resolved_reference_str_list = sorted(["    {0}={1!r}".format(safe_repr(key), value)
+                                              for key, value in ctx.cached_results.iteritems()])
+        resolved_references = "\n".join(resolved_reference_str_list)
         msg = type(self).MESSAGE.format(error_msg=error_msg, attr_name=attr_name, clazz=clazz,
-                                        context_call_stack=context_call_stack)
+                                        context_call_stack=context_call_stack, resolved_references=resolved_references)
         super(InstructBufferError, self).__init__(msg)
 
         self.clazz = clazz

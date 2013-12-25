@@ -1,5 +1,8 @@
+import types
+
 from infi.instruct.utils.safe_repr import safe_repr
-from .reference import Reference
+
+from .reference import Reference, ObjectReference
 
 
 class FuncCallReference(Reference):

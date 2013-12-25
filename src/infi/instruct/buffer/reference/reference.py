@@ -228,7 +228,10 @@ class ObjectReference(Reference):
         return self.obj
 
     def __safe_repr__(self):
-        return "ref({0!r})".format(self.obj)
+        if not isinstance(self.obj, Reference):
+            return repr(self.obj)
+        else:
+            return "ref({0!r})".format(self.obj)
 
 
 class NumericCastReference(Reference):

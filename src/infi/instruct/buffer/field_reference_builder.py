@@ -1,5 +1,7 @@
 import itertools
 
+from infi.instruct.utils.safe_repr import safe_repr
+
 from .io_buffer import InputBuffer, OutputBuffer
 from .reference import (Reference, Context, ContextGetAttrReference, ObjectReference,
                         FuncCallReference, FieldReference, GetAttrReference, AssignAttrReference)

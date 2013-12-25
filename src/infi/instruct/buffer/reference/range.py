@@ -66,7 +66,7 @@ class ByteSliceRangeReference(BitContainer, RangeReference):
         return SequentialRangeList([SequentialRange(self.start.deref(ctx), self.stop.deref(ctx))])
 
     def __safe_repr__(self):
-        return "[{0!r}:{1!r}]".format(safe_repr(self.start), safe_repr(self.stop))
+        return "[{0}:{1}]".format(safe_repr(self.start), safe_repr(self.stop))
 
 
 class ByteNumericRangeReference(BitContainer, RangeReference):

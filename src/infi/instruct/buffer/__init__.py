@@ -1,2 +1,2 @@
-from .buffer import Buffer
+from .buffer import Buffer, BufferType
 from .macros import *

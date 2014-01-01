@@ -91,7 +91,7 @@ class FieldUnpackerReference(Reference):
         self.unpacker_ref = unpacker_ref
 
     def evaluate(self, ctx):
-        return self.unpacker_ref.evaluate(ctx)[0]
+        return self.unpacker_ref.deref(ctx)[0]
 
     def __safe_repr__(self):
         return "field_unpack({0})".format(self.unpacker_ref._func_repr())

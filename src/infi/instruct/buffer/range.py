@@ -16,6 +16,9 @@ class SequentialRangeMixin(object):
     def byte_length(self):
         pass
 
+    def max_stop(self):
+        pass
+
 
 @functools.total_ordering
 class SequentialRange(SequentialRangeMixin):
@@ -63,6 +66,13 @@ class SequentialRange(SequentialRangeMixin):
         if self.is_open():
             return None
         return self.stop - self.start
+
+    def max_stop(self):
+        """
+        :returns: length of range if a closed range or None if open range.
+        :rtype: int or float or None
+        """
+        return self.stop
 
     def to_slice(self):
         """

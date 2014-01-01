@@ -21,9 +21,12 @@ class InstructBufferError(InstructError):
     def __init__(self, error_msg, ctx, clazz, attr_name):
         # Format the context call stack, so it will be clearer.
         context_call_stack = "\n".join(["    {0}".format(line) for line in ctx.format_exception_call_stack()])
-        resolved_reference_str_list = sorted(["    {0}={1!r}".format(safe_repr(key), value)
-                                              for key, value in ctx.cached_results.iteritems()])
-        resolved_references = "\n".join(resolved_reference_str_list)
+
+        # Format a list of all resolved references, remove identity ones (e.g. 1=1, etc.) and show only uniques
+        resolved_reference_pairs = [(safe_repr(key), repr(value)) for key, value in ctx.cached_results.iteritems()]
+        resolved_reference_str_list = sorted(["    {0}={1}".format(a, b) for a, b in resolved_reference_pairs
+                                              if a != b])
+        resolved_references = "\n".join(s for s, _ in itertools.groupby(resolved_reference_str_list))
         msg = type(self).MESSAGE.format(error_msg=error_msg, attr_name=attr_name, clazz=clazz,
                                         context_call_stack=context_call_stack, resolved_references=resolved_references)
         super(InstructBufferError, self).__init__(msg)

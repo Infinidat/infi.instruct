@@ -103,10 +103,12 @@ class Buffer(object):
         ctx = PackContext(self, fields)
 
         for field in fields:
-            try:
-                ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
-            except:
-                raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self), field.attr_name()))
+            if field.pack_if.deref(ctx):
+                try:
+                    ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
+                except:
+                    raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self),
+                                                               field.attr_name()))
 
         result = bytearray(ctx.output_buffer.get())
 

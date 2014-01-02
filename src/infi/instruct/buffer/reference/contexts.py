@@ -58,3 +58,14 @@ class ContextGetAttrReference(GetAttrReference):
 
     def __init__(self, numeric, attr_name):
         super(ContextGetAttrReference, self).__init__(numeric, ReturnContextReference(), attr_name)
+
+
+class InputBufferLengthReference(Reference):
+    def __init__(self):
+        super(InputBufferLengthReference, self).__init__(True)
+
+    def evaluate(self, ctx):
+        return ctx.input_buffer.length()
+
+    def __safe_repr__(self):
+        return "len(input_buffer)"

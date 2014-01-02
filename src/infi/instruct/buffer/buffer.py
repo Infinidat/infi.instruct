@@ -103,10 +103,12 @@ class Buffer(object):
         ctx = PackContext(self, fields)
 
         for field in fields:
-            try:
-                ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
-            except:
-                raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self), field.attr_name()))
+            if field.pack_if.deref(ctx):
+                try:
+                    ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
+                except:
+                    raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self),
+                                                               field.attr_name()))
 
         result = bytearray(ctx.output_buffer.get())
 
@@ -129,10 +131,13 @@ class Buffer(object):
 
         for field in fields:
             try:
-                # TODO: get rid of unpack_after once we use dependencies as we should.
-                for prev_field in field.unpack_after:
-                    prev_field.unpack_value_ref.deref(ctx)
-                field.unpack_value_ref.deref(ctx)
+                if field.unpack_if.deref(ctx):
+                    # TODO: get rid of unpack_after once we use dependencies as we should.
+                    for prev_field in field.unpack_after:
+                        prev_field.unpack_value_ref.deref(ctx)
+                    field.unpack_value_ref.deref(ctx)
+                else:
+                    setattr(self, field.attr_name(), None)
             except:
                 raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 

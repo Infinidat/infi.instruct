@@ -29,9 +29,12 @@ class TotalSizeReference(Reference):
         return result
 
     def _unpack_position_list_for_field(self, ctx, field):
-        _, size = field.unpack_ref.deref(ctx)
-        result = field.unpack_absolute_position_ref.deref(ctx).byte_offset(size)
-        return result
+        if field.unpack_if.deref(ctx):
+            _, size = field.unpack_ref.deref(ctx)
+            result = field.unpack_absolute_position_ref.deref(ctx).byte_offset(size)
+            return result
+        else:
+            return 0
 
     def __safe_repr__(self):
         return "total_size"

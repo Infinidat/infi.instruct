@@ -52,9 +52,12 @@ class ByteListRangeReference(BitContainer, ListRangeReference):
 class ByteSliceRangeReference(BitContainer, RangeReference):
     def __init__(self, slic):
         assert slic.step in (1, None)
-        assert slic.start is None or slic.start >= 0
-        assert slic.stop is None or slic.stop >= 0
-        assert (slic.start is None or slic.stop is None) or (slic.start <= slic.stop)
+        assert slic.start is None or Reference.is_numeric_ref(slic.start) or slic.start >= 0
+        assert slic.stop is None or Reference.is_numeric_ref(slic.stop) or slic.stop >= 0
+        assert ((slic.start is None or slic.stop is None)
+                or Reference.is_numeric_ref(slic.start)
+                or Reference.is_numeric_ref(slic.stop)
+                or (slic.start <= slic.stop))
 
         BitContainer.__init__(self)
         RangeReference.__init__(self)
@@ -71,7 +74,7 @@ class ByteSliceRangeReference(BitContainer, RangeReference):
 
 class ByteNumericRangeReference(BitContainer, RangeReference):
     def __init__(self, ref):
-        assert ref >= 0
+        assert Reference.is_numeric_ref(ref) or ref >= 0
         super(ByteNumericRangeReference, self).__init__()
         self.ref = Reference.to_ref(ref)
 

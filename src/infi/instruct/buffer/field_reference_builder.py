@@ -42,6 +42,8 @@ class PackAbsolutePositionReference(Reference):
 
 class UnpackAbsolutePositionReference(Reference):
     def __init__(self, field, unpack_position_ref):
+        assert field is not None, "field is None"
+        assert unpack_position_ref is not None, "unpack_position_ref is None"
         super(UnpackAbsolutePositionReference, self).__init__(False)
         self.field = field
         self.unpack_position_ref = unpack_position_ref
@@ -122,11 +124,15 @@ class PackSequentialRangeListByteLengthReference(SequentialRangeListByteLengthRe
 
 
 class FieldReferenceBuilder(object):
-    def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack,
-                 unpack_after, default):
+    def __init__(self, numeric, set_before_pack, pack_if, set_after_unpack, unpack_if,
+                 where, where_when_pack, where_when_unpack, unpack_after, default):
+        if not (where or (where_when_pack and where_when_unpack)):
+            raise ValueError("where or where_when_pack/unpack must be given")
         self.numeric = numeric
         self.set_before_pack = set_before_pack
         self.set_after_unpack = set_after_unpack
+        self.pack_if = pack_if
+        self.unpack_if = unpack_if
         self.where = where
         self.where_when_pack = where_when_pack
         self.where_when_unpack = where_when_unpack
@@ -169,6 +175,8 @@ class FieldReferenceBuilder(object):
         # on Buffer, it will fill it in for us.
         self.field = FieldReference(self.numeric, None)
         self.field.default = self.default
+        self.field.pack_if = Reference.to_ref(self.pack_if) if self.pack_if is not None else Reference.to_ref(True)
+        self.field.unpack_if = Reference.to_ref(self.unpack_if) if self.unpack_if is not None else Reference.to_ref(True)
 
     def set_field_position(self):
         if self.where is not None:

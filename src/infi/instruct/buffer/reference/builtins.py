@@ -46,3 +46,21 @@ class AssignAttrReference(FuncCallReference):
     def __safe_repr__(self):
         arg_ref_repr = _repr_peel_obj_ref_for_str(self.arg_refs[1])
         return "{0!r}.{1} = {2!r}".format(self.arg_refs[0], arg_ref_repr, self.arg_refs[2])
+
+
+class MinFuncCallReference(FuncCallReference):
+    """Holds a reference to min(*args) function call."""
+    def __init__(self, *args):
+        super(MinFuncCallReference, self).__init__(True, min, *args)
+
+    def __safe_repr__(self):
+        return "min_ref({0})".format(self._args_repr())
+
+
+class MaxFuncCallReference(FuncCallReference):
+    """Holds a reference to max(*args) function call."""
+    def __init__(self, *args):
+        super(MaxFuncCallReference, self).__init__(True, max, *args)
+
+    def __safe_repr__(self):
+        return "max_ref({0})".format(self._args_repr())

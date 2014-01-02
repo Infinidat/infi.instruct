@@ -7,11 +7,17 @@ class StructTypeAdapter(object):
         buf.unpack(s)
         return buf
 
-    def write_to_stream(self, *args):
-        raise NotImplementedError()
+    def write_to_stream(self, obj, stream, context=None):
+        packed_data = obj.pack()
+        stream.write(packed_data)
 
-    def create_from_stream(self, *args, **kwargs):
-        raise NotImplementedError()
+    def create_from_stream(self, stream, context=None, *args, **kwargs):
+        if self.buffer_type.byte_size is not None:
+            packed_data = stream.read(self.buffer_type.byte_size)
+            result = self.buffer_type()
+            result.unpack(packed_data)
+            return result
+        raise ValueError("cannot unpack a non-fixed size buffer")
 
     def min_max_sizeof(self):
         raise NotImplementedError()
@@ -19,11 +25,11 @@ class StructTypeAdapter(object):
     def sizeof(self, obj):
         raise NotImplementedError()
 
-    def write_to_string(self, *args, **kwargs):
-        raise NotImplementedError()
+    def write_to_string(self, obj, context=None):
+        return obj.pack()
 
-    def to_repr(self, *args, **kwargs):
-        raise NotImplementedError()
+    def to_repr(self, obj, context=None):
+        return repr(obj)
 
     def get_updated_context(self, *args, **kwargs):
         raise NotImplementedError()

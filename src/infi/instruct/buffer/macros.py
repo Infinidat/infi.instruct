@@ -4,7 +4,7 @@ from infi.instruct.utils.safe_repr import safe_repr
 
 from .reference import (Reference, ContextGetAttrReference, FuncCallReference, LengthFuncCallReference,
                         TotalSizeReference, AfterFieldReference, FieldOrAttrReference, SelfProxy, ByteRangeFactory,
-                        NumericCastReference)
+                        NumericCastReference, InputBufferLengthReference, MinFuncCallReference, MaxFuncCallReference)
 from .field_reference_builder import FieldReferenceBuilder
 
 from .buffer import BufferType
@@ -17,9 +17,9 @@ __all__ = [
     'int16', 'n_int16', 'b_int16', 'l_int16', 'uint16', 'n_uint16', 'b_uint16', 'l_uint16',
     'int32', 'n_int32', 'b_int32', 'l_int32', 'uint32', 'n_uint32', 'b_uint32', 'l_uint32',
     'int64', 'n_int64', 'b_int64', 'l_int64', 'uint64', 'n_uint64', 'b_uint64', 'l_uint64',
-    'int_field', 'float_field', 'str_type', 'str_type_factory', 'str_field', 'buffer_field', 'list_field',
+    'int_field', 'uint_field', 'float_field', 'str_type', 'str_type_factory', 'str_field', 'buffer_field', 'list_field',
     'bytearray_field', 'be_int_field', 'le_int_field', 'bytes_ref', 'total_size', 'after_ref', 'member_func_ref',
-    'le_uint_field', 'be_uint_field', 'len_ref', 'self_ref', 'num_ref'
+    'le_uint_field', 'be_uint_field', 'len_ref', 'min_ref', 'max_ref', 'self_ref', 'num_ref', 'input_buffer_length'
 ]
 JUSTIFY = ('left', 'right')
 
@@ -63,6 +63,7 @@ l_uint64 = int_marshal(8, "unsigned", "little")
 bytes_ref = ByteRangeFactory()
 total_size = TotalSizeReference()
 self_ref = SelfProxy()
+input_buffer_length = InputBufferLengthReference()
 
 
 def str_type_factory(encoding='ascii', padding=' ', justify='left', byte_size=None):
@@ -77,6 +78,8 @@ str_type = str_type_factory()
 def int_field(endian='native', sign='signed',
               set_before_pack=None,
               set_after_unpack=None,
+              pack_if=True,
+              unpack_if=True,
               where=None,
               where_when_pack=None,
               where_when_unpack=None,
@@ -86,6 +89,8 @@ def int_field(endian='native', sign='signed',
     builder = FieldReferenceBuilder(numeric=True,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
@@ -98,6 +103,11 @@ def int_field(endian='native', sign='signed',
     builder.set_packer(pack_int, **marshal_kwargs)
     builder.set_unpacker(unpack_int, **marshal_kwargs)
     return builder.create()
+
+
+def uint_field(*args, **kwargs):
+    kwargs.update(sign='unsigned')
+    return int_field(*args, **kwargs)
 
 
 def be_uint_field(*args, **kwargs):
@@ -123,6 +133,8 @@ def le_int_field(*args, **kwargs):
 def float_field(endian='native',
                 set_before_pack=None,
                 set_after_unpack=None,
+                pack_if=True,
+                unpack_if=True,
                 where=None,
                 where_when_pack=None,
                 where_when_unpack=None,
@@ -132,6 +144,8 @@ def float_field(endian='native',
     builder = FieldReferenceBuilder(numeric=True,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
@@ -147,6 +161,8 @@ def float_field(endian='native',
 
 def bytearray_field(set_before_pack=None,
                     set_after_unpack=None,
+                    pack_if=None,
+                    unpack_if=None,
                     where=None,
                     where_when_pack=None,
                     where_when_unpack=None,
@@ -155,6 +171,8 @@ def bytearray_field(set_before_pack=None,
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
@@ -168,6 +186,8 @@ def bytearray_field(set_before_pack=None,
 def str_field(encoding='ascii', padding=' ', justify='left',
               set_before_pack=None,
               set_after_unpack=None,
+              pack_if=None,
+              unpack_if=None,
               where=None,
               where_when_pack=None,
               where_when_unpack=None,
@@ -176,6 +196,8 @@ def str_field(encoding='ascii', padding=' ', justify='left',
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
@@ -208,6 +230,8 @@ def buffer_field(type,
                  unpack_selector=None,
                  set_before_pack=None,
                  set_after_unpack=None,
+                 pack_if=None,
+                 unpack_if=None,
                  where=None,
                  where_when_pack=None,
                  where_when_unpack=None,
@@ -217,6 +241,8 @@ def buffer_field(type,
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
@@ -234,6 +260,8 @@ def buffer_field(type,
 def list_field(type, n=None, unpack_selector=None,
                set_before_pack=None,
                set_after_unpack=None,
+               pack_if=None,
+               unpack_if=None,
                where=None,
                where_when_pack=None,
                where_when_unpack=None,
@@ -245,6 +273,8 @@ def list_field(type, n=None, unpack_selector=None,
     builder = FieldReferenceBuilder(numeric=False,
                                     set_before_pack=set_before_pack,
                                     set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
                                     where=where,
                                     where_when_pack=where_when_pack,
                                     where_when_unpack=where_when_unpack,
@@ -280,6 +310,14 @@ def len_ref(ref_or_str):
 
 def num_ref(ref):
     return NumericCastReference(ref)
+
+
+def min_ref(*refs):
+    return MinFuncCallReference(*refs)
+
+
+def max_ref(*refs):
+    return MaxFuncCallReference(*refs)
 
 
 def _make_field_ref(ref_or_str):

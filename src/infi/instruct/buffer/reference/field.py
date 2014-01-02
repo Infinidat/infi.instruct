@@ -8,7 +8,9 @@ class FieldReference(Reference):
     pack_value_ref = None
     unpack_value_ref = None
     pack_ref = None
+    pack_if = None
     unpack_ref = None
+    unpack_if = None
     pack_absolute_position_ref = None
     unpack_absolute_position_ref = None
     unpack_after = None

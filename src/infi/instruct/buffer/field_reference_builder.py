@@ -122,11 +122,12 @@ class PackSequentialRangeListByteLengthReference(SequentialRangeListByteLengthRe
 
 
 class FieldReferenceBuilder(object):
-    def __init__(self, numeric, set_before_pack, set_after_unpack, where, where_when_pack, where_when_unpack,
+    def __init__(self, numeric, set_before_pack, set_after_unpack, unpack_if, where, where_when_pack, where_when_unpack,
                  unpack_after, default):
         self.numeric = numeric
         self.set_before_pack = set_before_pack
         self.set_after_unpack = set_after_unpack
+        self.unpack_if = unpack_if
         self.where = where
         self.where_when_pack = where_when_pack
         self.where_when_unpack = where_when_unpack
@@ -169,6 +170,7 @@ class FieldReferenceBuilder(object):
         # on Buffer, it will fill it in for us.
         self.field = FieldReference(self.numeric, None)
         self.field.default = self.default
+        self.field.unpack_if = Reference.to_ref(self.unpack_if) if self.unpack_if is not None else Reference.to_ref(True)
 
     def set_field_position(self):
         if self.where is not None:

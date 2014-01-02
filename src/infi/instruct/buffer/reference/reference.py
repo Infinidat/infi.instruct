@@ -9,7 +9,11 @@ from infi.instruct.errors import InstructError
 OPERATOR_TO_SYMBOL = {
     operator.add: "+",
     operator.sub: "-",
-    operator.neg: "-"
+    operator.neg: "-",
+    operator.le: "<=",
+    operator.lt: "<",
+    operator.ge: ">=",
+    operator.gt: ">"
 }
 
 
@@ -108,10 +112,18 @@ class Reference(object):
             return "({0}<{1}> repr error)".format(type(self), id(self))
 
     @classmethod
-    def to_ref(self, ref):
+    def to_ref(cls, ref):
         if isinstance(ref, Reference):
             return ref
         return ObjectReference(isinstance(ref, Number), ref)
+
+    @classmethod
+    def is_ref(cls, obj):
+        return isinstance(obj, Reference)
+
+    @classmethod
+    def is_numeric_ref(cls, obj):
+        return isinstance(obj, Reference) and obj.is_numeric()
 
     def is_static(self):
         # We want to see if this reference can resolve w/o external dependencies, i.e. doesn't need anything from
@@ -135,51 +147,62 @@ class Reference(object):
         return self.is_numeric() and isinstance(other, Number)or (isinstance(other, Reference) and other.is_numeric())
 
     def __add__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.add)
 
     def __radd__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(other, self, operator.add)
 
     def __sub__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.sub)
 
     def __rsub__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(other, self, operator.sub)
 
     def __mul__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.mul)
 
     def __rmul__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(other, self, operator.mul)
 
     def __div__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.div)
 
     def __rdiv__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(other, self, operator.div)
 
     def __neg__(self):
-        if not self.is_numeric():
-            return NotImplemented
+        if not self.is_numeric(): return NotImplemented
         return NumericUnaryExpression(self, operator.neg)
 
     # FIXME: add rest of the operators, including unary ones
+    def __le__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.le)
+
+    def __lt__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.lt)
+
+    def __ge__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.ge)
+
+    def __gt__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.gt)
+
+    def __cmp__(self, other):
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
+        return NumericBinaryExpression(self, other, cmp)
 
 
 class NumericUnaryExpression(Reference):

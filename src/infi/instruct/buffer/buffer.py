@@ -129,10 +129,13 @@ class Buffer(object):
 
         for field in fields:
             try:
-                # TODO: get rid of unpack_after once we use dependencies as we should.
-                for prev_field in field.unpack_after:
-                    prev_field.unpack_value_ref.deref(ctx)
-                field.unpack_value_ref.deref(ctx)
+                if field.unpack_if.deref(ctx):
+                    # TODO: get rid of unpack_after once we use dependencies as we should.
+                    for prev_field in field.unpack_after:
+                        prev_field.unpack_value_ref.deref(ctx)
+                    field.unpack_value_ref.deref(ctx)
+                else:
+                    setattr(self, field.attr_name(), None)
             except:
                 raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 

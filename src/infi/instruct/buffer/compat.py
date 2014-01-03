@@ -23,7 +23,7 @@ class StructTypeAdapter(object):
         raise NotImplementedError()
 
     def sizeof(self, obj):
-        raise NotImplementedError()
+        return len(obj.pack())
 
     def write_to_string(self, obj, context=None):
         return obj.pack()

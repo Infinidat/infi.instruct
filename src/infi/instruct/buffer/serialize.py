@@ -199,6 +199,7 @@ def unpack_str(buffer, **kwargs):
     args = str_args_from_kwargs(kwargs)
     justify = args['justify']
     padding = args['padding']
+    strip = args['strip']
     byte_size = kwargs_int_byte_size(args)
     if byte_size and len(buffer) < byte_size:
         raise ValueError("str byte_size is {} but got buffer with len {}".format(byte_size, len(buffer)))
@@ -206,11 +207,11 @@ def unpack_str(buffer, **kwargs):
     value = str(buffer[0:byte_size]).decode(args['encoding'])
     if byte_size is not None:
         if justify == 'left':
-            value = value.rstrip(padding)
+            value = value.rstrip(strip).rstrip(padding)
         elif justify == 'right':
-            value = value.lstrip(padding)
+            value = value.lstrip(strip).lstrip(padding)
         else:  # center
-            value = value.strip(padding)
+            value = value.strip(strip).strip(padding)
     return value, len(buffer)
 
 

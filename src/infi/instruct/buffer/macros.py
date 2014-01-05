@@ -66,8 +66,8 @@ self_ref = SelfProxy()
 input_buffer_length = InputBufferLengthReference()
 
 
-def str_type_factory(encoding='ascii', padding=' ', justify='left', byte_size=None):
-    kwargs = dict(encoding=encoding, padding=padding, justify=justify)
+def str_type_factory(encoding='ascii', padding=' ', strip='\x00', justify='left', byte_size=None):
+    kwargs = dict(encoding=encoding, padding=padding, strip=strip, justify=justify)
     if byte_size:
         kwargs['byte_size'] = byte_size
     return (keep_kwargs_partial(pack_str, **kwargs), keep_kwargs_partial(unpack_str, **kwargs))
@@ -183,7 +183,7 @@ def bytearray_field(set_before_pack=None,
     return builder.create()
 
 
-def str_field(encoding='ascii', padding=' ', justify='left',
+def str_field(encoding='ascii', padding=' ', strip='\x00', justify='left',
               set_before_pack=None,
               set_after_unpack=None,
               pack_if=None,
@@ -203,7 +203,7 @@ def str_field(encoding='ascii', padding=' ', justify='left',
                                     where_when_unpack=where_when_unpack,
                                     unpack_after=unpack_after,
                                     default=default)
-    marshal_kwargs = dict(encoding=encoding, padding=padding, justify=justify)
+    marshal_kwargs = dict(encoding=encoding, padding=padding, strip=strip, justify=justify)
     builder.set_packer(pack_str, **marshal_kwargs)
     builder.set_unpacker(unpack_str, **marshal_kwargs)
     return builder.create()

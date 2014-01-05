@@ -329,6 +329,15 @@ class BufferTestCase(TestCase):
         foo.unpack(" 1234567")
         self.assertEquals("1234567", foo.f_a)
 
+    def test_buffer_str_strip(self):
+        class Foo(Buffer):
+            f_a = str_field(where=bytes_ref[0:8], justify='left', padding=' ', strip='\x00')
+
+        foo = Foo()
+
+        foo.unpack("1234567    \x00\x00\x00\x00")
+        self.assertEquals("1234567", foo.f_a)
+
     def test_buffer_selector(self):
         class Bar(Buffer):
             f_a = int_field(where=bytes_ref[0:4])

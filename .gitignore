@@ -42,3 +42,4 @@ src/infi/instruct/__version__.py
 cover/
 .cache
 eggs
+parts

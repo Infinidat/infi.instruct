@@ -226,6 +226,9 @@ class NumericUnaryExpression(Reference):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "{0}({1!r})".format(op_sym, self.ref)
 
+    def __nonzero__(self):
+        raise NotImplementedError("not supported")
+
 
 class NumericBinaryExpression(Reference):
     """
@@ -243,6 +246,9 @@ class NumericBinaryExpression(Reference):
     def __safe_repr__(self):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "({0!r} {1} {2!r})".format(self.a, op_sym, self.b)
+
+    def __nonzero__(self):
+        raise NotImplementedError("not supported")
 
 
 class ObjectReference(Reference):

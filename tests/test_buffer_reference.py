@@ -56,3 +56,10 @@ class ReferenceTestCase(TestCase):
 
         foo_ref = FuncCallReference(True, foo, ObjectReference(True, 5), add=ObjectReference(True, 7))
         self.assertEqual(12, foo_ref.deref(Context()))
+
+    def test_numeric_operators(self):
+        a = ObjectReference(True, 5)
+        b = ObjectReference(True, 4)
+        with self.assertRaises(NotImplementedError):
+            self.assertTrue(a==a)
+

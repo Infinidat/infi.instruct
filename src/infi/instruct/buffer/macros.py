@@ -297,7 +297,7 @@ def list_field(type, n=None, unpack_selector=None,
 
 
 def after_ref(field_ref):
-    return AfterFieldReference(field_ref.is_numeric(), field_ref)
+    return AfterFieldReference(field_ref)
 
 
 def member_func_ref(func):

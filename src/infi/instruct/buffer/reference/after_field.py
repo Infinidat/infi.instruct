@@ -4,8 +4,8 @@ from .reference import Reference
 
 
 class AfterFieldReference(Reference):
-    def __init__(self, numeric, field_ref):
-        super(AfterFieldReference, self).__init__(numeric)
+    def __init__(self, field_ref):
+        super(AfterFieldReference, self).__init__(True)
         self.field_ref = field_ref
 
     def evaluate(self, ctx):

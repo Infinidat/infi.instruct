@@ -13,7 +13,9 @@ OPERATOR_TO_SYMBOL = {
     operator.le: "<=",
     operator.lt: "<",
     operator.ge: ">=",
-    operator.gt: ">"
+    operator.gt: ">",
+    operator.eq: "==",
+    operator.ne: "!="
 }
 
 
@@ -199,10 +201,13 @@ class Reference(object):
         if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.gt)
 
-    def __cmp__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
-        return NumericBinaryExpression(self, other, cmp)
+    def __eq__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.eq)
+
+    def __ne__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.ne)
 
 
 class NumericUnaryExpression(Reference):

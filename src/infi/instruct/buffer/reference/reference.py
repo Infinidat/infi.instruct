@@ -13,7 +13,9 @@ OPERATOR_TO_SYMBOL = {
     operator.le: "<=",
     operator.lt: "<",
     operator.ge: ">=",
-    operator.gt: ">"
+    operator.gt: ">",
+    operator.eq: "==",
+    operator.ne: "!="
 }
 
 
@@ -199,10 +201,13 @@ class Reference(object):
         if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.gt)
 
-    def __cmp__(self, other):
-        if not self.__check_binary_expression_for_numeric(other):
-            return NotImplemented
-        return NumericBinaryExpression(self, other, cmp)
+    def __eq__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.eq)
+
+    def __ne__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.ne)
 
 
 class NumericUnaryExpression(Reference):
@@ -221,6 +226,9 @@ class NumericUnaryExpression(Reference):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "{0}({1!r})".format(op_sym, self.ref)
 
+    def __nonzero__(self):
+        raise NotImplementedError("not supported")
+
 
 class NumericBinaryExpression(Reference):
     """
@@ -238,6 +246,9 @@ class NumericBinaryExpression(Reference):
     def __safe_repr__(self):
         op_sym = OPERATOR_TO_SYMBOL[self.operator] if self.operator in OPERATOR_TO_SYMBOL else repr(self.operator)
         return "({0!r} {1} {2!r})".format(self.a, op_sym, self.b)
+
+    def __nonzero__(self):
+        raise NotImplementedError("not supported")
 
 
 class ObjectReference(Reference):

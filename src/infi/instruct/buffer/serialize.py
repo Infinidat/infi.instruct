@@ -217,7 +217,7 @@ def unpack_str(buffer, **kwargs):
 
 
 def pack_json(value, **kwargs):
-    return pack_str(json.dumps(value))
+    return pack_str(json.dumps(value), **kwargs)
 
 
 def unpack_json(value, **kwargs):

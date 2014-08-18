@@ -221,7 +221,8 @@ def pack_json(value, **kwargs):
 
 
 def unpack_json(value, **kwargs):
-    return json.loads(pack_str(value))
+    json_string, length = unpack_str(value, **kwargs)
+    return json.loads(json_string.strip()), length
 
 
 def pack_bytearray(buffer, **kwargs):

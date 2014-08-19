@@ -1,5 +1,6 @@
 import math
 import struct
+import json
 
 from .io_buffer import BitAwareByteArray, BitView
 from .buffer import BufferType
@@ -213,6 +214,15 @@ def unpack_str(buffer, **kwargs):
         else:  # center
             value = value.strip(strip).strip(padding)
     return value, len(buffer)
+
+
+def pack_json(value, **kwargs):
+    return pack_str(json.dumps(value), **kwargs)
+
+
+def unpack_json(value, **kwargs):
+    json_string, length = unpack_str(value, **kwargs)
+    return json.loads(json_string.strip()), length
 
 
 def pack_bytearray(buffer, **kwargs):

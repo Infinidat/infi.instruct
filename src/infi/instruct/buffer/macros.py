@@ -10,7 +10,7 @@ from .field_reference_builder import FieldReferenceBuilder
 from .buffer import BufferType
 
 from .serialize import (pack_int, unpack_int, pack_float, unpack_float, pack_str, unpack_str, pack_bytearray,
-                        unpack_bytearray, pack_buffer, unpack_buffer, pack_list, unpack_list)
+                        unpack_bytearray, pack_buffer, unpack_buffer, pack_list, unpack_list, pack_json, unpack_json)
 
 __all__ = [
     'int8', 'n_int8', 'b_int8', 'l_int8', 'uint8', 'n_uint8', 'b_uint8', 'l_uint8',
@@ -19,7 +19,8 @@ __all__ = [
     'int64', 'n_int64', 'b_int64', 'l_int64', 'uint64', 'n_uint64', 'b_uint64', 'l_uint64',
     'int_field', 'uint_field', 'float_field', 'str_type', 'str_type_factory', 'str_field', 'buffer_field', 'list_field',
     'bytearray_field', 'be_int_field', 'le_int_field', 'bytes_ref', 'total_size', 'after_ref', 'member_func_ref',
-    'le_uint_field', 'be_uint_field', 'len_ref', 'min_ref', 'max_ref', 'self_ref', 'num_ref', 'input_buffer_length'
+    'le_uint_field', 'be_uint_field', 'len_ref', 'min_ref', 'max_ref', 'self_ref', 'num_ref', 'input_buffer_length',
+    'json_field'
 ]
 JUSTIFY = ('left', 'right')
 
@@ -206,6 +207,31 @@ def str_field(encoding='ascii', padding=' ', strip='\x00', justify='left',
     marshal_kwargs = dict(encoding=encoding, padding=padding, strip=strip, justify=justify)
     builder.set_packer(pack_str, **marshal_kwargs)
     builder.set_unpacker(unpack_str, **marshal_kwargs)
+    return builder.create()
+
+
+def json_field(set_before_pack=None,
+               set_after_unpack=None,
+               pack_if=None,
+               unpack_if=None,
+               where=None,
+               where_when_pack=None,
+               where_when_unpack=None,
+               unpack_after=None,
+               default=None):
+    builder = FieldReferenceBuilder(numeric=False,
+                                    set_before_pack=set_before_pack,
+                                    set_after_unpack=set_after_unpack,
+                                    pack_if=pack_if,
+                                    unpack_if=unpack_if,
+                                    where=where,
+                                    where_when_pack=where_when_pack,
+                                    where_when_unpack=where_when_unpack,
+                                    unpack_after=unpack_after,
+                                    default=default)
+    marshal_kwargs = dict(encoding='ascii', padding=' ', strip='\x00', justify='left',)
+    builder.set_packer(pack_json, **marshal_kwargs)
+    builder.set_unpacker(unpack_json, **marshal_kwargs)
     return builder.create()
 
 

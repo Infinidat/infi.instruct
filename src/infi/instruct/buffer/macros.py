@@ -184,7 +184,7 @@ def bytearray_field(set_before_pack=None,
     return builder.create()
 
 
-def str_field(encoding='ascii', padding=' ', strip='\x00', justify='left',
+def str_field(encoding='ascii', padding=b' ', strip=b'\x00', justify='left',
               set_before_pack=None,
               set_after_unpack=None,
               pack_if=None,

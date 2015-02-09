@@ -1,3 +1,4 @@
+from ._compat import range
 from .base import Marshal, ConstReader, EMPTY_CONTEXT, MinMax, FixedSizer
 
 class ArrayBase(object):
@@ -23,7 +24,7 @@ class VarSizeArrayMarshal(ArrayBase, Marshal):
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         size = self.size_marshal.create_from_stream(stream, context, *args, **kwargs)
         obj = []
-        for i in xrange(size):
+        for i in range(size):
             obj.append(self.element_marshal.create_from_stream(stream, context, *args, **kwargs))
         return obj
 

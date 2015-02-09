@@ -1,8 +1,13 @@
+from .._compat import PY2
+
 class StructTypeAdapter(object):
     def __init__(self, buffer_type):
         self.buffer_type = buffer_type
 
     def create_from_string(self, s):
+        if not PY2 and not isinstance(s, bytes):
+            raise TypeError("s should be an instance of bytes in Python 3")
+
         buf = self.buffer_type()
         buf.unpack(s)
         return buf

@@ -1,7 +1,9 @@
 import math
 import itertools
+from six import add_metaclass
+import six
 
-from infi import exceptools
+from infi.exceptools import chain as chain_exceptions
 from infi.instruct.utils.safe_repr import safe_repr
 from infi.instruct.errors import InstructError
 
@@ -23,7 +25,7 @@ class InstructBufferError(InstructError):
         context_call_stack = "\n".join(["    {0}".format(line) for line in ctx.format_exception_call_stack()])
 
         # Format a list of all resolved references, remove identity ones (e.g. 1=1, etc.) and show only uniques
-        resolved_reference_pairs = [(safe_repr(key), repr(value)) for key, value in ctx.cached_results.iteritems()]
+        resolved_reference_pairs = [(safe_repr(key), repr(value)) for key, value in six.iteritems(ctx.cached_results)]
         resolved_reference_str_list = sorted(["    {0}={1}".format(a, b) for a, b in resolved_reference_pairs
                                               if a != b])
         resolved_references = "\n".join(s for s, _ in itertools.groupby(resolved_reference_str_list))
@@ -75,13 +77,13 @@ class BufferType(type):
                     return None
                 positions.extend(field.pack_absolute_position_ref.deref(ctx))
             except:
-                raise exceptools.chain(InstructBufferError("Error while calculating static byte size", ctx,
+                raise chain_exceptions(InstructBufferError("Error while calculating static byte size", ctx,
                                                            class_name, field.attr_name()))
         return positions.max_stop()
 
 
+@add_metaclass(BufferType)
 class Buffer(object):
-    __metaclass__ = BufferType
 
     def __init__(self, **kwargs):
         super(Buffer, self).__init__()
@@ -107,7 +109,7 @@ class Buffer(object):
                 try:
                     ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
                 except:
-                    raise exceptools.chain(InstructBufferError("Pack error occured", ctx, type(self),
+                    raise chain_exceptions(InstructBufferError("Pack error occured", ctx, type(self),
                                                                field.attr_name()))
 
         result = bytearray(ctx.output_buffer.get())
@@ -139,7 +141,7 @@ class Buffer(object):
                 else:
                     setattr(self, field.attr_name(), None)
             except:
-                raise exceptools.chain(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
+                raise chain_exceptions(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 
         return self.calc_byte_size(ctx)
 

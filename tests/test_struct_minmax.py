@@ -8,7 +8,7 @@ def test_eq():
 
     assert MinMax(-1, 10) == MinMax(-5, 10)
 
-    assert MinMax(0, sys.maxint + 10) == MinMax(-1, sys.maxint)
+    assert MinMax(0, sys.maxsize + 10) == MinMax(-1, sys.maxsize)
 
 def test_add():
     assert (MinMax(0, 10) + MinMax(-5, 10)) == MinMax(0, 20)

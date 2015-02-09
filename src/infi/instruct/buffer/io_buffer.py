@@ -1,5 +1,6 @@
 import math
 import collections
+from .._compat import is_string_or_bytes, range, PY2
 
 
 def float_to_byte_bit_pair(n):
@@ -20,7 +21,7 @@ class BitView(collections.Sequence):
     def __init__(self, buffer, start=0, stop=None):
         super(BitView, self).__init__()
         # FIXME: On Python 2.7 there's no bytes() type (immutable byte sequence).
-        if isinstance(buffer, (str, unicode)):
+        if is_string_or_bytes(buffer):
             self.buffer = bytearray(buffer)
         else:
             self.buffer = buffer
@@ -41,18 +42,21 @@ class BitView(collections.Sequence):
         return int(math.ceil(self.stop - self.start))
 
     def __iter__(self):
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             yield self._get_byte_bits(i + self.start, min(int((self.stop - i - self.start) * 8), 8))
 
     def __str__(self):
-        return str(bytearray(b for b in self))
+        if PY2:
+            return self.to_bytes()
+        else:
+            raise NotImplementedError("BitViews should not be treated as strings in Python 3. Use to_bytes instead")
 
     def __repr__(self):
         return "{0}(buffer={1!r}, start={2}, stop={3})".format(type(self), self.buffer, self.start, self.stop)
 
     def to_bitstr(self):
         result = []
-        for i in xrange(int(self.start * 8), int(self.stop * 8)):
+        for i in range(int(self.start * 8), int(self.stop * 8)):
             byte_i, bit_i = float_to_byte_bit_pair(float(i) / 8)
             result.append((self.buffer[byte_i] >> bit_i) & 1)
         return "".join(str(n) for n in reversed(result))
@@ -86,7 +90,6 @@ class BitView(collections.Sequence):
             cur_byte = self.buffer[byte_ofs]
             next_byte = self.buffer[byte_ofs + 1] if byte_ofs + 1 < len(self.buffer) else 0
             return (((cur_byte >> bit_ofs) & 0xFF) | ((next_byte << (8 - bit_ofs)) & 0xFF)) & bit_mask
-
     def _key_to_range(self, key):
         if isinstance(key, slice):
             if key.step not in (None, 1):
@@ -105,6 +108,10 @@ class BitView(collections.Sequence):
         length = self.length()
         ofs = max(ofs + length, 0) if ofs < 0 else min(ofs, length)
         return ofs + self.start
+
+    def to_bytes(self):
+        ba = bytearray(b for b in self)
+        return str(ba) if PY2 else bytes(ba)
 
 
 class BitAwareByteArray(BitView, collections.MutableSequence):
@@ -260,7 +267,7 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
             l = []
             for n in range(0, bit_length, 8):
                 l.append(value % 256)
-                value /= 256
+                value //= 256
             value = l
             value_len = max(float(bit_length) / 8, int_value_len)
         else:

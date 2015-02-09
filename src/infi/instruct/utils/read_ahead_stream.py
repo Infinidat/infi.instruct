@@ -1,6 +1,6 @@
 class ReadAheadStream(object):
     def __init__(self, stream):
-        self.buffer = ''
+        self.buffer = b''
         self.stream = stream
         self.read_ahead_mode = False
 
@@ -13,7 +13,7 @@ class ReadAheadStream(object):
     def read(self, size):
         assert size >= 0
 
-        res = ''
+        res = b''
         if self.read_ahead_mode:
             res += self.stream.read(size)
             self.buffer += res

@@ -1,6 +1,7 @@
 from ..base import Marshal, MinMax, ZERO_MIN_MAX, UNBOUNDED_MIN_MAX, EMPTY_CONTEXT
 from ..errors import InstructError
 from ..utils.read_ahead_stream import ReadAheadStream
+from .._compat import values_list
 
 from . import Struct
 
@@ -16,7 +17,7 @@ class StructSelectorMarshal(Marshal):
                 raise ValueError("mapping key %s must be a subclass of Struct" % key)
             self.mapping[key] = struct
 
-        structs = mapping.values() + ([ self.default ] if self.default is not None else [])
+        structs = values_list(mapping) + ([ self.default ] if self.default is not None else [])
 
         self.min_max_size = sum([ struct.min_max_sizeof() for struct in structs ], ZERO_MIN_MAX)
 

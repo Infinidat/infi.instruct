@@ -12,9 +12,9 @@ def test_simple_bits():
     obj.bar = 5
 
     serialized_obj = MyStruct.write_to_string(obj)
-    assert serialized_obj == chr(6 + (5 << 3)), repr(serialized_obj)
+    assert serialized_obj == chr(6 + (5 << 3)).encode("ASCII"), repr(serialized_obj)
 
-    obj = MyStruct.create_from_string(chr(6 + (5 << 3)))
+    obj = MyStruct.create_from_string(chr(6 + (5 << 3)).encode("ASCII"))
     assert obj.foo == 6
     assert obj.bar == 5
     assert MyStruct.sizeof(obj) == 1
@@ -60,4 +60,4 @@ def test_bit_slicing():
     obj.foo = 0xdcceef
     obj.bar = 0x9
     obj.doo = 0x3
-    assert binascii.hexlify(MyStruct.write_to_string(obj)) == "9dcceef3"
+    assert binascii.hexlify(MyStruct.write_to_string(obj)) == b"9dcceef3"

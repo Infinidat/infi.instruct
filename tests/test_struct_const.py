@@ -25,7 +25,7 @@ def test_serialized_const():
         pass
 
     serialized_obj = MyStruct.write_to_string(obj)
-    assert binascii.hexlify(serialized_obj) == "32"
+    assert binascii.hexlify(serialized_obj) == b"32"
 
     obj = MyStruct.create_from_string(binascii.unhexlify("32"))
     assert obj.foo == 0x32

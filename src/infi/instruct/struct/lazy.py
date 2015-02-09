@@ -1,4 +1,4 @@
-from cStringIO import StringIO
+from .._compat import StringIO
 
 from . import FieldBase, Field, FieldListContainer
 from ..base import FixedSizer, EMPTY_CONTEXT

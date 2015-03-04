@@ -172,6 +172,22 @@ class Reference(object):
         if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(other, self, operator.mul)
 
+    def __truediv__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.truediv)
+
+    def __rtruediv__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(other, self, operator.truediv)
+
+    def __floordiv__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(self, other, operator.floordiv)
+
+    def __rfloordiv__(self, other):
+        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        return NumericBinaryExpression(other, self, operator.floordiv)
+
     def __div__(self, other):
         if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.div)
@@ -208,6 +224,9 @@ class Reference(object):
     def __ne__(self, other):
         if not self.__check_binary_expression_for_numeric(other): return NotImplemented
         return NumericBinaryExpression(self, other, operator.ne)
+
+    def __hash__(self):
+        return id(self)
 
 
 class NumericUnaryExpression(Reference):
@@ -248,6 +267,9 @@ class NumericBinaryExpression(Reference):
         return "({0!r} {1} {2!r})".format(self.a, op_sym, self.b)
 
     def __nonzero__(self):
+        raise NotImplementedError("not supported")
+
+    def __bool__(self):
         raise NotImplementedError("not supported")
 
 

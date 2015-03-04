@@ -6,6 +6,7 @@ from .io_buffer import BitAwareByteArray, BitView
 from .buffer import BufferType
 
 from ..errors import InstructError
+from .._compat import long
 from ..utils.kwargs import (copy_defaults_and_override_with_kwargs, assert_kwarg_enum, copy_and_remove_kwargs,
                             keep_kwargs_partial)
 
@@ -99,7 +100,7 @@ def unpack_struct_int(buffer, format_char, **kwargs):
     format = format_from_struct_int_arguments(format_char, kwargs)
     byte_size = struct.calcsize(format)
     assert len(buffer) >= byte_size, "buffer size must be at least {0} but instead got {1}".format(byte_size, len(buffer))
-    return struct.unpack(format, str(buffer[0:byte_size]))[0], byte_size
+    return struct.unpack(format, buffer[0:byte_size].to_bytes())[0], byte_size
 
 STRUCT_INT_UNPACKERS = {
     1: keep_kwargs_partial(unpack_struct_int, format_char='b'),
@@ -151,7 +152,7 @@ def unpack_struct_float(buffer, format_char, **kwargs):
     format = format_from_struct_float_arguments(format_char, kwargs)
     byte_size = struct.calcsize(format)
     assert len(buffer) >= byte_size, "buffer size must be at least {0} but instead got {1}".format(byte_size, len(buffer))
-    return struct.unpack(format, str(buffer[0:byte_size]))[0], byte_size
+    return struct.unpack(format, buffer[0:byte_size].to_bytes())[0], byte_size
 
 
 def unpack_float(buffer, **kwargs):
@@ -205,7 +206,7 @@ def unpack_str(buffer, **kwargs):
     if byte_size and len(buffer) < byte_size:
         raise ValueError("str byte_size is {} but got buffer with len {}".format(byte_size, len(buffer)))
 
-    value = str(buffer[0:byte_size]).decode(args['encoding'])
+    value = buffer[0:byte_size].to_bytes()
     if byte_size is not None:
         if justify == 'left':
             value = value.rstrip(strip).rstrip(padding)
@@ -213,6 +214,7 @@ def unpack_str(buffer, **kwargs):
             value = value.lstrip(strip).lstrip(padding)
         else:  # center
             value = value.strip(strip).strip(padding)
+    value = value.decode(args['encoding'])
     return value, len(buffer)
 
 

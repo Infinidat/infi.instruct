@@ -2,6 +2,8 @@ import operator
 
 from infi.instruct.utils.safe_repr import safe_repr
 from infi.instruct.buffer.range import BIT, SequentialRange, SequentialRangeList
+from infi.instruct._compat import long, range
+from functools import reduce
 
 from .reference import Reference
 
@@ -155,7 +157,7 @@ class BitSliceRangeReference(BitRangeReference):
 
         bit_range_remaining_len = bit_range.byte_length()
         result = []
-        for i in xrange(i, len(range_list)):
+        for i in range(i, len(range_list)):
             r = range_list[i]
             subrange_start = r.start + bit_range.start - sum_length
             if r.is_open() or (r.stop - subrange_start) >= bit_range_remaining_len:

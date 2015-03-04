@@ -7,7 +7,7 @@ class MacroTestCase(unittest.TestCase):
             _fields_ = [ULInt32("counter"), ULInt32("gap"),
                         VarSizeArray("entries", ReadPointer("counter"), ULInt32)]
 
-        string = "\x03\x00\x00\x00"*2  + "\x00\x00\x00\x00"*3
+        string = b"\x03\x00\x00\x00"*2  + b"\x00\x00\x00\x00"*3
         instance = MyStruct.create_from_string(string)
         self.assertEqual(len(instance.entries), 3)
 

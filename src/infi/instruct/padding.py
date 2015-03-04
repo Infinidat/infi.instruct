@@ -1,7 +1,7 @@
 from .base import FixedSizer, Marshal, EMPTY_CONTEXT
 
 class BytePaddingMarshal(FixedSizer, Marshal):
-    def __init__(self, size, char="\x00"):
+    def __init__(self, size, char=b"\x00"):
         super(BytePaddingMarshal, self).__init__()
         self.size = size
         self.char = char

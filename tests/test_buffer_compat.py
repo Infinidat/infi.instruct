@@ -10,6 +10,6 @@ class CompatTestCase(unittest.TestCase):
             b = int_field(where=bytes_ref[4:8])
 
         s = buffer_to_struct_adapter(MyBuffer)
-        b = s.create_from_string("\xff\x00\x00\x00\xfe\x00\x00\x00")
+        b = s.create_from_string(b"\xff\x00\x00\x00\xfe\x00\x00\x00")
         self.assertEquals(b.a, 0xff)
         self.assertEquals(b.b, 0xfe)

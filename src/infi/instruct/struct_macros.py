@@ -48,7 +48,7 @@ def BitFields(*args):
         return BitFieldListContainer(args)
 
 def BitField(name, size, default=None):
-    if isinstance(size, (types.TupleType, types.ListType, slice)):
+    if isinstance(size, (tuple, list, slice)):
         return Field(name, PositionalBitMarshal((size,) if isinstance(size, slice) else size), default)
     return Field(name, BitMarshal(size), default)
 
@@ -58,12 +58,12 @@ def BitFlag(name, default=None):
 def BitPadding(size):
     return AnonymousField(BitPaddingMarshal(size))
 
-def BytePadding(size, char='\x00'):
+def BytePadding(size, char=b'\x00'):
     return AnonymousField(BytePaddingMarshal(size, char))
 
 class BitSlicer(object):
     def __getitem__(self, key):
-        if isinstance(key, (types.TupleType, types.ListType)):
+        if isinstance(key, (tuple, list)):
             return list(key)
         elif isinstance(key, slice):
             return [ key ]

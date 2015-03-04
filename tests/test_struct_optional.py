@@ -15,13 +15,13 @@ def test_optional():
     assert obj.boo == 1, obj.boo
     assert obj.foo is None, repr(obj.foo)
 
-    assert MyStruct.write_to_string(obj) == "\x01"
+    assert MyStruct.write_to_string(obj) == b"\x01"
 
     obj.foo = 0x12
-    assert MyStruct.write_to_string(obj) == "\x01\x12"
+    assert MyStruct.write_to_string(obj) == b"\x01\x12"
     
-    obj = MyStruct.create_from_string("\x43\x01")
+    obj = MyStruct.create_from_string(b"\x43\x01")
     assert obj.foo is None
 
-    obj = MyStruct.create_from_string("\x42\x01")
+    obj = MyStruct.create_from_string(b"\x42\x01")
     assert obj.foo == 1

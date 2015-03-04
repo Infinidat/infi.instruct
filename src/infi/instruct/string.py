@@ -1,5 +1,6 @@
 from .base import Marshal, ConstReader, FixedSizer, EMPTY_CONTEXT, MinMax
 from .errors import InstructError, InvalidValueError
+from ._compat import pad
 
 PADDING_DIRECTION_NONE  = 0
 PADDING_DIRECTION_RIGHT = 1
@@ -33,7 +34,7 @@ def _pad(obj, size, dir, padding):
                                 (len(obj), size, obj))
 
 class VarSizeStringMarshal(Marshal):
-    def __init__(self, size_marshal, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
+    def __init__(self, size_marshal, padding=b'\x00', padding_direction=PADDING_DIRECTION_RIGHT):
         super(VarSizeStringMarshal, self).__init__()
         self.size_marshal = size_marshal
         self.padding = padding
@@ -62,7 +63,7 @@ class VarSizeStringMarshal(Marshal):
         return MinMax(size_min_max.min, size_min_max.max + (1 << (size_min_max.max * 8)) - 1)
 
 class PaddedStringMarshal(FixedSizer, VarSizeStringMarshal):
-    def __init__(self, size, padding='\x00', padding_direction=PADDING_DIRECTION_RIGHT):
+    def __init__(self, size, padding=b'\x00', padding_direction=PADDING_DIRECTION_RIGHT):
         super(PaddedStringMarshal, self).__init__(ConstReader(size), padding, padding_direction)
         self.size = size
 
@@ -70,12 +71,12 @@ class PaddedStringMarshal(FixedSizer, VarSizeStringMarshal):
         stripped_obj = _strip(obj, self.padding_direction, self.padding)
         stream.write(stripped_obj)
         if len(stripped_obj) < self.size:
-            stream.write(self.padding[0] * (self.size - len(stripped_obj)))
+            stream.write(pad(self.padding[0], (self.size - len(stripped_obj))))
 
 class VarSizeBufferMarshal(VarSizeStringMarshal):
     def __init__(self, size_marshal):
-        super(VarSizeBufferMarshal, self).__init__(size_marshal, padding='', padding_direction=PADDING_DIRECTION_NONE)
+        super(VarSizeBufferMarshal, self).__init__(size_marshal, padding=b'', padding_direction=PADDING_DIRECTION_NONE)
 
 class FixedSizeBufferMarshal(PaddedStringMarshal):
     def __init__(self, size):
-        super(FixedSizeBufferMarshal, self).__init__(size, padding='', padding_direction=PADDING_DIRECTION_NONE)
+        super(FixedSizeBufferMarshal, self).__init__(size, padding=b'', padding_direction=PADDING_DIRECTION_NONE)

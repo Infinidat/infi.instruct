@@ -4,14 +4,14 @@ from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
 from infi.instruct.buffer.macros import (int_field, float_field, str_field, buffer_field, list_field,
                                          bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref, num_ref)
-from infi.exceptools import *
+from infi.instruct._compat import range, PY2
 
 
 def junk_generator(size):
     import string
     import random
-    chars = string.letters + string.digits + string.punctuation
-    return ''.join(random.choice(chars) for x in range(size))
+    chars = string.ascii_letters + string.digits + string.punctuation
+    return ''.join(random.choice(chars) for x in range(size)).encode('ASCII')
 
 
 class BufferTestCase(TestCase):
@@ -21,7 +21,7 @@ class BufferTestCase(TestCase):
         foo = Foo()
         foo.f_int = 42
         self.assertEqual(struct.pack("=l", foo.f_int), foo.pack())
-        foo.unpack("\xFF\x00\x00\x00")
+        foo.unpack(b"\xFF\x00\x00\x00")
         self.assertEqual(255, foo.f_int)
 
     def test_buffer_pack_unpack__float(self):
@@ -43,9 +43,9 @@ class BufferTestCase(TestCase):
                 self.f_str = f_str
 
         foo = Foo(42, "hello")
-        self.assertEqual(struct.pack("=l", foo.f_int) + foo.f_str, foo.pack())
+        self.assertEqual(struct.pack("=l", foo.f_int) + foo.f_str.encode('ASCII'), foo.pack())
 
-        foo.unpack(struct.pack("=l", 24) + "olleh")
+        foo.unpack(struct.pack("=l", 24) + b"olleh")
         self.assertEqual(24, foo.f_int)
         self.assertEqual("olleh", foo.f_str)
 
@@ -57,7 +57,7 @@ class BufferTestCase(TestCase):
         foo = Foo()
         foo.f_int = 0
         foo.f_str = 'hello world'
-        self.assertEqual(struct.pack("=L", len(foo.f_str)) + 'hello world', foo.pack())
+        self.assertEqual(struct.pack("=L", len(foo.f_str)) + b'hello world', foo.pack())
 
     def test_buffer_pack_unpack__varsize__a_better_approach(self):
         class Foo(Buffer):
@@ -67,17 +67,17 @@ class BufferTestCase(TestCase):
         foo = Foo()
         foo.f_int = 0
         foo.f_str = 'hello world'
-        self.assertEqual(struct.pack("=L", len(foo.f_str)) + 'hello world', foo.pack())
+        self.assertEqual(struct.pack("=L", len(foo.f_str)) + b'hello world', foo.pack())
 
     def test_buffer_pack_unpack__varsize__a_better_approach_with_arithmetics(self):
         class Foo(Buffer):
             f_int = int_field(where=bytes_ref[0:4], set_before_pack=len_ref(self_ref.f_str) * 2)
-            f_str = str_field(where=bytes_ref[4:4 + f_int / 2])
+            f_str = str_field(where=bytes_ref[4:4 + f_int // 2])
 
         foo = Foo()
         foo.f_int = 0
         foo.f_str = 'hello world'
-        self.assertEqual(struct.pack("=L", len(foo.f_str) * 2) + 'hello world', foo.pack())
+        self.assertEqual(struct.pack("=L", len(foo.f_str) * 2) + b'hello world', foo.pack())
 
     def test_buffer_bits__simple(self):
         class Foo(Buffer):
@@ -98,7 +98,7 @@ class BufferTestCase(TestCase):
             packed_value = foo.pack()
             self.assertEqual(8, len(packed_value))
             packed_result = bytearray(8)
-            for i in xrange(8):
+            for i in range(8):
                 packed_result[7 - i] = (foo.f_int >> (i * 4)) & 0x0F
             self.assertEqual(packed_result, packed_value)
             foo = Foo()
@@ -120,10 +120,11 @@ class BufferTestCase(TestCase):
 
             ba = bitarray('0' * (8 * 8), endian='little')
             int_pack = struct.pack("<L", foo.f_int)
-            for i in xrange(4):
+            for i in range(4):
                 b = bitarray(endian='little')
-                b.frombytes(int_pack[i])
+                b.frombytes(bytes([int_pack[i]]) if not PY2 else int_pack[i])
                 ba[i * 2 * 8 + 4:i * 2 * 8 + 4 + 8] = b
+
             self.assertEqual(ba.tobytes(), packed_value)
 
     def test_buffer_bits__partial(self):
@@ -155,7 +156,7 @@ class BufferTestCase(TestCase):
             hot_swap = be_int_field(where=bytes_ref[2].bits[7])
 
         f = CoolingElementInfo()
-        f.unpack("\x03\x8E\x25")
+        f.unpack(b"\x03\x8E\x25")
         self.assertTrue(f.fan_speed < (1 << 12), "fan_speed is {0}, bit length {1}".format(f.fan_speed,
                         f.fan_speed.bit_length() if isinstance(f.fan_speed, int) else "?"))
 
@@ -177,9 +178,9 @@ class BufferTestCase(TestCase):
         foo = Foo("hello")
         packed_foo = foo.pack()
         self.assertEqual(len(foo.f_str), foo.f_str_len)
-        self.assertEqual(struct.pack("=L", foo.f_str_len) + foo.f_str, packed_foo)
+        self.assertEqual(struct.pack("=L", foo.f_str_len) + foo.f_str.encode("ASCII"), packed_foo)
 
-        foo.unpack(struct.pack("=L", len("olleh!")) + "olleh!")
+        foo.unpack(struct.pack("=L", len("olleh!")) + b"olleh!")
         self.assertEqual(len("olleh!"), foo.f_str_len)
         self.assertEqual("olleh!", foo.f_str)
 
@@ -254,7 +255,7 @@ class BufferTestCase(TestCase):
             f_str = str_field(where_when_pack=bytes_ref[4:],
                               where_when_unpack=bytes_ref[4:4 + f_int])
 
-        foo_serialized = struct.pack("=L", 10) + '0123456789'
+        foo_serialized = struct.pack("=L", 10) + b'0123456789'
         self.assertEqual(len(foo_serialized), 4 + 10)
         foo = Foo()
         foo.unpack(foo_serialized)
@@ -263,7 +264,7 @@ class BufferTestCase(TestCase):
 
         foo = Foo()
         foo.f_str = '01234'
-        self.assertEqual(struct.pack('=L', 5) + '01234', foo.pack())
+        self.assertEqual(struct.pack('=L', 5) + b'01234', foo.pack())
 
     def test_buffer_cyclic_reference(self):
         with self.assertRaises(InstructBufferError):
@@ -311,31 +312,31 @@ class BufferTestCase(TestCase):
         foo = Foo()
         foo.f_a = 3
         foo.f_b = 8
-        self.assertEqual("\x83", foo.pack())
+        self.assertEqual(b"\x83", foo.pack())
 
         foo = Foo()
-        foo.unpack("\x12")
+        foo.unpack(b"\x12")
         self.assertEqual(foo.f_a, 2)
         self.assertEqual(foo.f_b, 1)
 
     def test_buffer_str_justify(self):
         class Foo(Buffer):
-            f_a = str_field(where=bytes_ref[0:8], justify='right', padding=' ')
+            f_a = str_field(where=bytes_ref[0:8], justify='right', padding=b' ')
 
         foo = Foo()
         foo.f_a = '123'
-        self.assertEquals("     123", foo.pack())
+        self.assertEquals(b"     123", foo.pack())
 
-        foo.unpack(" 1234567")
+        foo.unpack(b" 1234567")
         self.assertEquals("1234567", foo.f_a)
 
     def test_buffer_str_strip(self):
         class Foo(Buffer):
-            f_a = str_field(where=bytes_ref[0:8], justify='left', padding=' ', strip='\x00')
+            f_a = str_field(where=bytes_ref[0:8], justify='left', padding=b' ', strip=b'\x00')
 
         foo = Foo()
 
-        foo.unpack("1234567    \x00\x00\x00\x00")
+        foo.unpack(b"1234567    \x00\x00\x00\x00")
         self.assertEquals("1234567", foo.f_a)
 
     def test_buffer_selector(self):
@@ -378,8 +379,8 @@ class BufferTestCase(TestCase):
             ident = be_int_field(where=bytes_ref[0].bits[7])
 
         f = SasExpanderElementInfo()
-        f.unpack("\x00\x00\x00")
-        self.assertEquals(f.pack(), "\x00\x00\x00")
+        f.unpack(b"\x00\x00\x00")
+        self.assertEquals(f.pack(), b"\x00\x00\x00")
 
     def test_buffer_list_selector(self):
         class Bar(Buffer):
@@ -457,8 +458,8 @@ class BufferTestCase(TestCase):
         f = Foo()
         f.l = 0
         f.s = ""
-        self.assertEquals(f.pack(), "\x00\x00\x00\x00")
-        f.unpack("\x00\x00\x00\x00")
+        self.assertEquals(f.pack(), b"\x00\x00\x00\x00")
+        f.unpack(b"\x00\x00\x00\x00")
 
     def test_set_buffer_on_pack(self):
         class Foo(Buffer):
@@ -478,9 +479,9 @@ class BufferTestCase(TestCase):
         f = Foo()
         f.s = "hello world"
         f.l = len(f.s)
-        self.assertEquals(f.pack(), "\x00\x0bhello world")
+        self.assertEquals(f.pack(), b"\x00\x0bhello world")
 
-        b = "\x00\x0bhello world" + junk_generator(0x10000)
+        b = b"\x00\x0bhello world" + junk_generator(0x10000)
         f.unpack(b)
 
     def test_buffer_unpack_error(self):
@@ -489,7 +490,7 @@ class BufferTestCase(TestCase):
             s = str_field(where=bytes_ref[2:2 + l])
         f = Foo()
         with self.assertRaises(InstructBufferError):
-            f.unpack("\x00\x051234")  # missing one byte
+            f.unpack(b"\x00\x051234")  # missing one byte
 
     def test_buffer_unpack_non_numeric(self):
         with self.assertRaises(TypeError):
@@ -505,7 +506,7 @@ class BufferTestCase(TestCase):
         f = Foo()
         f.a = 2
         f.b = 'he'
-        self.assertEquals("\x00\x02he", f.pack())
+        self.assertEquals(b"\x00\x02he", f.pack())
 
     def test_buffer_len_ref(self):
         class Foo(Buffer):
@@ -513,9 +514,9 @@ class BufferTestCase(TestCase):
             a = be_int_field(where=bytes_ref[0:2], set_before_pack=len_ref(s))
         f = Foo()
         f.s = 'hello'
-        self.assertEquals('\x00\x05hello', f.pack())
+        self.assertEquals(b'\x00\x05hello', f.pack())
 
-        f.unpack('\x00\x02hi')
+        f.unpack(b'\x00\x02hi')
         self.assertEquals('hi', f.s)
         self.assertEquals(2, f.a)
 
@@ -528,8 +529,8 @@ class BufferTestCase(TestCase):
                 return a * 2
 
         f = Foo(a=1, s='hello world')
-        self.assertEquals("\x01he", f.pack())
+        self.assertEquals(b"\x01he", f.pack())
 
-        f.unpack("\x02hell")
+        f.unpack(b"\x02hell")
         self.assertEquals(f.a, 2)
         self.assertEquals(f.s, "hell")

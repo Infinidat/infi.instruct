@@ -1,3 +1,4 @@
+from infi.instruct._compat import PY2
 from infi.instruct.errors import InstructError
 from infi.instruct.struct import Struct
 from infi.instruct.macros import StructFunc, SelectStructByFunc, UBInt8, ULInt32, FixedSizeArray, ConstField
@@ -27,16 +28,19 @@ def test_simple():
         _fields_ = [ SelectStructByFunc("poly_field", _determine_type, (0, 255)) ]
 
     s = MyStruct(poly_field=PolyStruct1(type=1, size=4, foo=1, bar=2))
-    assert str(s) == "\x01\x04\x01\x02"
 
-    s = MyStruct.create_from_string("\x01\x04\x01\x02")
+    if PY2:
+        assert str(s) == "\x01\x04\x01\x02"
+    s.to_bytes() == b"\x01\x04\x01\x02"
+
+    s = MyStruct.create_from_string(b"\x01\x04\x01\x02")
     assert isinstance(s.poly_field, PolyStruct1)
     assert s.poly_field.type == 1
     assert s.poly_field.size == 4
     assert s.poly_field.foo == 1
     assert s.poly_field.bar == 2
     
-    s = MyStruct.create_from_string("\x02\x03\x03")
+    s = MyStruct.create_from_string(b"\x02\x03\x03")
     assert isinstance(s.poly_field, PolyStruct2)
     assert s.poly_field.type == 2
     assert s.poly_field.size == 3
@@ -64,7 +68,10 @@ def test_array():
         _fields_ = [ FixedSizeArray("my_array", 3, FuncStructSelectorMarshal(StructFunc(_determine_type), (0, 255))) ]
 
     s = MyStruct(my_array=[ PolyStruct1(foo=1, bar=2), PolyStruct1(foo=3, bar=4), PolyStruct2(coo=5) ])
-    assert str(s) == "\x01\x04\x01\x02\x01\x04\x03\x04\x02\x03\x05"
+    if PY2:
+        assert str(s) == "\x01\x04\x01\x02\x01\x04\x03\x04\x02\x03\x05"
+
+    assert s.to_bytes() == b"\x01\x04\x01\x02\x01\x04\x03\x04\x02\x03\x05"
 
 def test_cross_read_ahead_boundries():
     class Struct1(Struct):
@@ -76,6 +83,6 @@ def test_cross_read_ahead_boundries():
             return Struct1
         _fields_ = [ SelectStructByFunc("foofoo", _determine_type, (4, 4)) ]
     
-    s = MyStruct.create_from_string("\x02\x00\x00\x00")
+    s = MyStruct.create_from_string(b"\x02\x00\x00\x00")
     print(s.foofoo.foo)
     assert s.foofoo.foo == 2

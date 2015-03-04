@@ -1,5 +1,6 @@
 import sys
 import functools
+from .._compat import range
 
 BIT = 0.125
 
@@ -87,7 +88,7 @@ class SequentialRange(SequentialRangeMixin):
         :rtype: bool
         """
         a, b = (self, other) if self.start <= other.start else (other, self)
-        a_imag_stop = a.to_closed(sys.maxint).stop
+        a_imag_stop = a.to_closed(sys.maxsize).stop
         return a_imag_stop > b.start
 
     def contains(self, point):
@@ -103,7 +104,7 @@ class SequentialRange(SequentialRangeMixin):
         return self.start == other.start and self.stop == other.stop
 
     def __lt__(self, other):
-        return self.start < other.start and self.to_closed(sys.maxint).stop < other.to_closed(sys.maxint).stop
+        return self.start < other.start and self.to_closed(sys.maxsize).stop < other.to_closed(sys.maxsize).stop
 
     def __repr__(self):
         return "SequentialRange(start={0!r}, stop={1!r})".format(self.start, self.stop)
@@ -138,7 +139,7 @@ class SequentialRangeList(list, SequentialRangeMixin):
         :rtype: bool
         """
         sorted_list = sorted(self)
-        for i in xrange(0, len(sorted_list) - 1):
+        for i in range(0, len(sorted_list) - 1):
             if sorted_list[i].overlaps(sorted_list[i + 1]):
                 return True
         return False
@@ -180,7 +181,7 @@ class SequentialRangeList(list, SequentialRangeMixin):
 
     def find_relative_container_index(self, point):
         sum_length = 0
-        for i in xrange(len(self)):
+        for i in range(len(self)):
             if self[i].is_open() or ((point - sum_length - self[i].byte_length()) <= 0):
                 return i, sum_length
             sum_length += self[i].byte_length()

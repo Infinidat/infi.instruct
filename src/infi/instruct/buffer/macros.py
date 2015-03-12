@@ -314,7 +314,7 @@ def list_field(type, n=None, unpack_selector=None,
     else:
         elem_packer, elem_unpacker = (pack_buffer, partial(unpack_buffer, type=type))
 
-    builder.set_packer(pack_list, elem_packer=elem_packer, **shared_kwargs)
+    builder.set_packer(pack_list, elem_packer=elem_packer)
     if unpack_selector:
         builder.set_unpacker(unpack_list, elem_unpacker=unpack_selector_decorator(unpack_selector), **shared_kwargs)
     else:

@@ -92,16 +92,16 @@ class StandardInquiryData(Struct):
 
 def test_inquiry_create():
     command = InquiryCommand(evpd=0, page_code=0x0, allocation_length=96)
-    assert InquiryCommand.write_to_string(command) == '\x12\x00\x00\x00\x60\x00'
+    assert InquiryCommand.write_to_string(command) == b'\x12\x00\x00\x00\x60\x00'
 
 def test_standard_inquiry_parse():
-    serialized_data = '\x00\x00\x05\x02[\x00\x00\x00ATA     ST9320423AS     0003\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+    serialized_data = b'\x00\x00\x05\x02[\x00\x00\x00ATA     ST9320423AS     0003\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
 
     data = StandardInquiryData.create_from_string(serialized_data)
 
-    assert data.t10_vendor_identification == 'ATA     ', data.t10_vendor_identification
-    assert data.product_identification == 'ST9320423AS     '
-    assert data.product_revision_level == '0003'
+    assert data.t10_vendor_identification == b'ATA     ', data.t10_vendor_identification
+    assert data.product_identification == b'ST9320423AS     '
+    assert data.product_revision_level == b'0003'
     assert data.extended is not None
-    assert data.extended.version_descriptors == '\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', repr(data.extended.version_descriptors)
+    assert data.extended.version_descriptors == b'\x00`\x03 \x02`\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00', repr(data.extended.version_descriptors)
     

@@ -18,7 +18,7 @@ def test_plain_fields_create():
     assert obj.bar == 0x23
 
     serialized_obj = MyStruct.write_to_string(obj)
-    assert binascii.hexlify(serialized_obj) == "3223"
+    assert binascii.hexlify(serialized_obj) == b"3223"
 
     obj = MyStruct.create_from_string(binascii.unhexlify("3223"))
     assert obj.foo == 0x32

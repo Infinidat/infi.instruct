@@ -1,7 +1,7 @@
 import sys
 import types
 import collections
-from cStringIO import StringIO
+from ._compat import StringIO, STRING_TYPES, PY2
 
 class ReadOnlyContext(object):
     """
@@ -28,8 +28,8 @@ class ReadOnlyContext(object):
 
     def _shallow_repr(self):
         def _is_primitive(obj):
-            return isinstance(obj, (types.IntType, types.BooleanType, types.BufferType, types.FloatType, types.ListType,
-                                    types.TupleType) + types.StringTypes)
+            return isinstance(obj, (int, bool, memoryview, float, list,
+                                    tuple) + STRING_TYPES)
         return ", ".join([ "%s=%s" % (key, repr(val) if _is_primitive(val) else "%s<%s>" % (type(val), id(val)))
                            for key, val in self.d.items() ])
 
@@ -53,17 +53,17 @@ EMPTY_CONTEXT = ReadOnlyContext()
 
 class MinMax(collections.namedtuple('MinMax', 'min max')):
     """
-    MinMax is a simple object containing a minimum value and a maximum value. Values are clipped to be [0, sys.maxint].
+    MinMax is a simple object containing a minimum value and a maximum value. Values are clipped to be [0, sys.maxsize].
     You can access the min/max values by the *min* or *max* properties or by index ([0], [1]).
     """
     __slots__ = ()
     
-    def __new__(cls, min_val_or_tuple=0, max_val=sys.maxint):
+    def __new__(cls, min_val_or_tuple=0, max_val=sys.maxsize):
         """
         Initialize a new MinMax instance. This initializer works in four different modes:
          * Copy constructor. If you pass it a MinMax object it'll copy the min/max values.
          * Construct from tuple/list. Construct the min/max by accessing [0] and [1].
-         * Construct from a single argument. User provides the min value, max is set to sys.maxint.
+         * Construct from a single argument. User provides the min value, max is set to sys.maxsize.
          * Construct from two arguments. User provides the min and max values.
         """
         if isinstance(min_val_or_tuple, (list, tuple, MinMax)):
@@ -73,21 +73,21 @@ class MinMax(collections.namedtuple('MinMax', 'min max')):
             min_val = min_val_or_tuple
         
         assert min_val <= max_val
-        return super(MinMax, cls).__new__(cls, max(0, min_val), min(max_val, sys.maxint))
+        return super(MinMax, cls).__new__(cls, max(0, min_val), min(max_val, sys.maxsize))
 
     def __add__(self, min_max):
         return MinMax(min_max.min + self.min, min_max.max + self.max)
 
     def is_unbounded(self):
-        return self.max >= sys.maxint
+        return self.max >= sys.maxsize
 
     def __str__(self):
-        return "MinMax(min=%d, max=%s)" % (self.min, self.max if self.max < sys.maxint else "unbounded")
+        return "MinMax(min=%d, max=%s)" % (self.min, self.max if self.max < sys.maxsize else "unbounded")
 
     def __repr__(self):
         return str(self)
 
-UNBOUNDED_MIN_MAX = MinMax(0, sys.maxint)
+UNBOUNDED_MIN_MAX = MinMax(0, sys.maxsize)
 ZERO_MIN_MAX = MinMax(0, 0)
 
 class MarshalBase(object):
@@ -127,6 +127,9 @@ class Marshal(MarshalBase):
         Deserializes a new instance from a string.
         This is a convenience method that creates a StringIO object and calls create_instance_from_stream().
         """
+        if not PY2 and not isinstance(string, bytes):
+            raise TypeError("string should be an instance of bytes in Python 3")
+
         io = StringIO(string)
         instance = self.create_from_stream(io, context, *args, **kwargs)
         io.close()

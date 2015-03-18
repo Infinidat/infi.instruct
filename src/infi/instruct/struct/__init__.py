@@ -1,5 +1,6 @@
 import types
-from cStringIO import StringIO
+from .._compat import StringIO, PY2
+from six import add_metaclass
 
 from ..base import MarshalBase, WritableContext, EMPTY_CONTEXT, ZERO_MIN_MAX
 from ..errors import StructNotWellDefinedError
@@ -130,7 +131,7 @@ class StructType(type):
 
         fields = getattr(new_cls, "_fields_")
         
-        if isinstance(fields, (types.ListType, types.TupleType)):
+        if isinstance(fields, (list, tuple)):
             fields = FieldListContainer(fields)
 
         setattr(new_cls, "_container_", fields)
@@ -154,15 +155,15 @@ class StructType(type):
                 # This solves STORAGEMODEL-146, because ASI defines Read10Command(logical_block_address, ...)
                 # and logical_block_address is also a field in the struct, so in this scenario instruct will
                 # "eat" the arg and we need to put it back.
-                for arg in user_init.func_code.co_varnames[0:user_init.func_code.co_argcount]:
+                for arg in user_init.__code__.co_varnames[0:user_init.__code__.co_argcount]:
                     if arg in orig_kwargs:
                         kwargs[arg] = orig_kwargs[arg]
                 user_init(self, *args, **kwargs)
         return __instance_init__
 
-class Struct(object):
-    __metaclass__ = StructType
 
+@add_metaclass(StructType)
+class Struct(object):
     def __init__(self, *args, **kwargs):
         super(Struct, self).__init__()
         type(self)._container_.prepare_instance(self, args, kwargs)
@@ -196,8 +197,11 @@ class Struct(object):
         return result
 
     @classmethod
-    def create_from_string(cls, str, context=EMPTY_CONTEXT, *args, **kwargs):
-        stream = StringIO(str)
+    def create_from_string(cls, s, context=EMPTY_CONTEXT, *args, **kwargs):
+        if not PY2 and not isinstance(s, bytes):
+            raise TypeError("s should be an instance of bytes in Python 3")
+
+        stream = StringIO(s)
         obj = cls.create_from_stream(stream, context, *args, **kwargs)
         stream.close()
         return obj
@@ -220,8 +224,14 @@ class Struct(object):
         new_context.update(context.get_dict())
         return new_context
 
-    def __str__(self):
+    def to_bytes(self):
         return type(self).write_to_string(self)
+
+    def __str__(self):
+        if PY2:
+            return self.to_bytes()
+        else:
+            raise NotImplementedError("Structs should not be treated as strings in Python 3. Use to_bytes instead")
 
     def __repr__(self):
         return type(self).to_repr(self)

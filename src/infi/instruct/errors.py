@@ -1,5 +1,6 @@
 from infi.exceptools import InfiException
 
+
 class InstructError(InfiException):
     pass
 

@@ -35,7 +35,7 @@ class BitFieldListContainer(FixedSizer, FieldListContainer):
         self.size = sum([ field.min_max_sizeof().min for field in self.fields ])
         if (self.size % 8) != 0:
             raise BitFieldNotInByteBoundry()
-        self.size /= 8
+        self.size //= 8
         
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
         bit_stream = BitStringIO(self.size)
@@ -94,7 +94,7 @@ class PositionalBitFieldListContainer(FixedSizer, FieldListContainer):
         if (self.bit_size % 8) != 0:
             raise BitFieldNotInByteBoundry()
         
-        self.size = self.bit_size / 8
+        self.size = self.bit_size // 8
         
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
         bit_stream = BitStringIO(self.size)

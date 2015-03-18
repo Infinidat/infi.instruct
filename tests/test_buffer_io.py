@@ -1,5 +1,6 @@
 import random
 from bitarray import bitarray
+from infi.instruct._compat import range, PY2
 from infi.unittest import TestCase
 from infi.instruct.buffer.io_buffer import BitView, BitAwareByteArray
 
@@ -129,23 +130,23 @@ class IOBufferTestCase(TestCase):
         self.assertEqual([1, 2, 3, 4, 5], list(buf))
 
     def test_bitview_getitem__single_byte_bitslice(self):
-        for i in xrange(0, 256):
-            for j in xrange(0, 8):
+        for i in range(0, 256):
+            for j in range(0, 8):
                 bv = BitView(bytearray([i]))
                 self.assertEqual(list(bv[float(j) / 8:])[0], i >> j)
 
     def test_bitview_getitem__single_byte_bitslice_with_bits(self):
-        for i in xrange(0, 256):
-            for j in xrange(0, 8):
+        for i in range(0, 256):
+            for j in range(0, 8):
                 bv = BitView(bytearray([i]))
                 bv_slice = bv[float(j) / 8:]
                 ba = bitarray(endian='little')
-                ba.frombytes(chr(i))
+                ba.frombytes(chr(i) if PY2 else bytes([i]))
                 ba_slice = ba[j:]
                 self.assertEqualBitArrayBitView(ba_slice, bv_slice)
 
     def test_bitview__positive_slicing(self):
-        for i in xrange(0, 100):
+        for i in range(0, 100):
             ba = self._create_random_bit_array()
             bv = BitView(self._bitarray_to_bytes(ba), stop=float(ba.length()) / 8)
             self.assertEqualBitArrayBitView(ba, bv)
@@ -194,7 +195,7 @@ class IOBufferTestCase(TestCase):
         a[-1] &= 0x01
         a[-1] |= (b[0] & 0x7F) << 1
 
-        for i in xrange(len(b) - 1):
+        for i in range(len(b) - 1):
             a.append((b[i] >> 7) + ((b[i + 1] & 0x7F) << 1))
 
         self.assertEquals(list(bv1), list(a))
@@ -218,7 +219,7 @@ class IOBufferTestCase(TestCase):
         self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('0000000000000000111111110000'), bv)
 
     def test_bitview_fetch_small(self):
-        bv = BitView("\xFF\x00", 0, 6 * 0.125)
+        bv = BitView(b"\xFF\x00", 0, 6 * 0.125)
         self.assertEquals(bv[0], 63)
 
     def test_array_half_byte(self):
@@ -229,7 +230,10 @@ class IOBufferTestCase(TestCase):
     def assertEqualBitArrayBitView(self, ba, bv):
         self.assertEqual(ba.length(), 8 * bv.length())
         ba_bytes = self._bitarray_to_bytes(ba)
-        bv_bytes = str(bv)
+        if PY2:
+            bv_bytes = str(bv)
+        else:
+            bv_bytes = bv.to_bytes()
         self.assertEqual(ba_bytes, bv_bytes)
 
     def _bitarray_from_bitstring(self, str):
@@ -237,7 +241,7 @@ class IOBufferTestCase(TestCase):
 
     def _create_random_bit_array(self):
         length_in_bits = random.randint(0, 8 * 16)
-        return bitarray("".join(random.choice(('0', '1')) for i in xrange(length_in_bits)), endian='little')
+        return bitarray("".join(random.choice(('0', '1')) for i in range(length_in_bits)), endian='little')
 
     def _bitarray_to_bytes(self, b):
         copy = bitarray(b, endian='little')

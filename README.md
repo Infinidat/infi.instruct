@@ -84,3 +84,11 @@ Run the following:
 
     easy_install -U infi.projector
     projector devenv build
+
+
+Python 3
+========
+
+Python 3 support is experimental at this stage. Most of the functions that expect a non-textual string in Python 2 must receive a parameter from the type `bytes` in Python 3.
+
+Objects that could have been serialized in Python 2 by calling str(o) have to be serialized in Python 3 by calling their `to_bytes` method, as it's forbidden to return `bytes` from \__str__ in Python 3.

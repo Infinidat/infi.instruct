@@ -184,7 +184,7 @@ def bytearray_field(set_before_pack=None,
     return builder.create()
 
 
-def str_field(encoding='ascii', padding=' ', strip='\x00', justify='left',
+def str_field(encoding='ascii', padding=b' ', strip=b'\x00', justify='left',
               set_before_pack=None,
               set_after_unpack=None,
               pack_if=None,
@@ -314,7 +314,7 @@ def list_field(type, n=None, unpack_selector=None,
     else:
         elem_packer, elem_unpacker = (pack_buffer, partial(unpack_buffer, type=type))
 
-    builder.set_packer(pack_list, elem_packer=elem_packer, **shared_kwargs)
+    builder.set_packer(pack_list, elem_packer=elem_packer)
     if unpack_selector:
         builder.set_unpacker(unpack_list, elem_unpacker=unpack_selector_decorator(unpack_selector), **shared_kwargs)
     else:

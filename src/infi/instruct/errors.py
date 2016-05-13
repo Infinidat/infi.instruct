@@ -1,7 +1,4 @@
-from infi.exceptools import InfiException
-
-
-class InstructError(InfiException):
+class InstructError(Exception):
     pass
 
 class NotEnoughDataError(InstructError):

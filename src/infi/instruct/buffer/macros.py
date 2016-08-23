@@ -229,7 +229,7 @@ def json_field(set_before_pack=None,
                                     where_when_unpack=where_when_unpack,
                                     unpack_after=unpack_after,
                                     default=default)
-    marshal_kwargs = dict(encoding='ascii', padding=' ', strip='\x00', justify='left',)
+    marshal_kwargs = dict(encoding='ascii', padding=b' ', strip=b'\x00', justify='left',)
     builder.set_packer(pack_json, **marshal_kwargs)
     builder.set_unpacker(unpack_json, **marshal_kwargs)
     return builder.create()

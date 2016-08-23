@@ -3,7 +3,8 @@ from bitarray import bitarray
 from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
 from infi.instruct.buffer.macros import (int_field, float_field, str_field, buffer_field, list_field,
-                                         bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref, num_ref)
+                                         bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref, num_ref,
+                                         json_field)
 from infi.instruct._compat import range, PY2
 
 
@@ -248,6 +249,17 @@ class BufferTestCase(TestCase):
         foo.f_int_array = None
         foo.unpack(struct.pack("=LLLL", 1, 2, 2, 4))
         self.assertEqual([1, 2, 2, 4], foo.f_int_array)
+
+    def test_buffer_pack_unpack__json_field(self):
+        class Foo(Buffer):
+            json_data = json_field(where=bytes_ref[0:15])
+
+        foo = Foo()
+        foo.json_data = {"foo": "bar"}
+        self.assertEqual(b'{"foo": "bar"} ', foo.pack())
+        foo.json_data = None
+        foo.unpack(b'{"foo": "bar"}\x00\x00')
+        self.assertEqual({"foo": "bar"}, foo.json_data)
 
     def test_buffer_total_size(self):
         class Foo(Buffer):

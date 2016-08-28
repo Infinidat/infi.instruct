@@ -1,4 +1,5 @@
 import types
+from array import array
 from .._compat import StringIO, PY2
 from six import add_metaclass
 
@@ -198,7 +199,7 @@ class Struct(object):
 
     @classmethod
     def create_from_string(cls, s, context=EMPTY_CONTEXT, *args, **kwargs):
-        if not PY2 and not isinstance(s, bytes):
+        if not PY2 and not isinstance(s, (bytes, array)):
             raise TypeError("s should be an instance of bytes in Python 3")
 
         stream = StringIO(s)

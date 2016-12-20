@@ -9,7 +9,7 @@ class ReadAheadStream(object):
 
     def is_read_ahead_empty(self):
         return len(self.buffer) == 0
-        
+
     def read(self, size):
         assert size >= 0
 
@@ -25,7 +25,7 @@ class ReadAheadStream(object):
             if len(res) < size:
                 res += self.stream.read(size - len(res))
         return res
-    
+
     def write(self, buf):
         if len(self.buffer) > 0:
             raise IOError("cannot write while there are still bytes in the read-ahead buffer")

@@ -58,9 +58,9 @@ def pack_bit_int(value, byte_size, **kwargs):
     result[0:] = value
     # BitAwareByteArray is little-endian when set with an integer type
     # regardless of the system byteorder.
-    if kwargs['endian'] == 'big' or((kwargs['endian'] == 'native') and
-                                       (byteorder == 'big')):
-	result.reverse()
+    if kwargs['endian'] == 'big' or ((kwargs['endian'] == 'native') and
+                                     (byteorder == 'big')):
+        result.reverse()
     return result
 
 

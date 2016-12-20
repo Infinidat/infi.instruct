@@ -23,7 +23,7 @@ def _pad(obj, size, dir, padding):
         raise InvalidValueError("fixed-size item length is expected to be of length %d or smaller but instead got %d (item=%s)" % (size, len(obj), repr(obj)))
     elif pad_len == 0:
         return obj
-    
+
     if dir == PADDING_DIRECTION_RIGHT or dir == PADDING_DIRECTION_BOTH:
         return obj + padding[0] * pad_len
     elif dir == PADDING_DIRECTION_LEFT:

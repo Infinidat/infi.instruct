@@ -1,4 +1,3 @@
-import types
 from numbers import Number
 import operator
 
@@ -149,80 +148,99 @@ class Reference(object):
         return self.is_numeric() and isinstance(other, Number)or (isinstance(other, Reference) and other.is_numeric())
 
     def __add__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.add)
 
     def __radd__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(other, self, operator.add)
 
     def __sub__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.sub)
 
     def __rsub__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(other, self, operator.sub)
 
     def __mul__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.mul)
 
     def __rmul__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(other, self, operator.mul)
 
     def __truediv__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.truediv)
 
     def __rtruediv__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(other, self, operator.truediv)
 
     def __floordiv__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.floordiv)
 
     def __rfloordiv__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(other, self, operator.floordiv)
 
     def __div__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.div)
 
     def __rdiv__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(other, self, operator.div)
 
     def __neg__(self):
-        if not self.is_numeric(): return NotImplemented
+        if not self.is_numeric():
+            return NotImplemented
         return NumericUnaryExpression(self, operator.neg)
 
     # FIXME: add rest of the operators, including unary ones
     def __le__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.le)
 
     def __lt__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.lt)
 
     def __ge__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.ge)
 
     def __gt__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.gt)
 
     def __eq__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.eq)
 
     def __ne__(self, other):
-        if not self.__check_binary_expression_for_numeric(other): return NotImplemented
+        if not self.__check_binary_expression_for_numeric(other):
+            return NotImplemented
         return NumericBinaryExpression(self, other, operator.ne)
 
     def __hash__(self):

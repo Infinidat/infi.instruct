@@ -15,17 +15,17 @@ class LazyField(Field):
     def prepare_instance(self, obj, args, kwargs):
         if self.name in kwargs:
             setattr(obj, self.name, kwargs.pop(self.name))
-        
+
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
         self.field.write_fields(obj, stream, context)
 
     def read_fields(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         self.field.read_fields(obj, stream, context, *args, **kwargs)
-        
+
     def __set__(self, instance, value):
         self.container.instantiate_if_needed(instance)
         instance.__dict__[self.name] = value
-    
+
     def __get__(self, instance, owner):
         self.container.instantiate_if_needed(instance)
         return instance.__dict__[self.name]
@@ -51,10 +51,10 @@ class LazyFieldListContainer(FixedSizer, FieldListContainer):
                 new_fields.append(LazyField(self, field))
             else:
                 new_fields.append(field)
-        
+
         super(LazyFieldListContainer, self).__init__(new_fields)
 
-        self.size = sum([ field.min_max_sizeof().min for field in self.fields ])
+        self.size = sum([field.min_max_sizeof().min for field in self.fields])
         self.lazy_key = "_lazy_container_%s" % id(self)
 
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
@@ -77,6 +77,6 @@ class LazyFieldListContainer(FixedSizer, FieldListContainer):
 
         # We first delete the lazy key so it'll return "instantiated" when the field descriptors are called.
         delattr(obj, self.lazy_key)
-        
+
         super(LazyFieldListContainer, self).read_fields(obj, stream, params['context'], *params['args'],
                                                         **params['kwargs'])

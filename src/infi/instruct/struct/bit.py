@@ -30,13 +30,13 @@ class BitPaddingMarshal(BitMarshal):
 class BitFieldListContainer(FixedSizer, FieldListContainer):
     def __init__(self, fields):
         super(BitFieldListContainer, self).__init__(fields)
-        if not all([ field.is_fixed_size() for field in self.fields ]):
+        if not all([field.is_fixed_size() for field in self.fields]):
             raise InstructError("all fields in a bit field list must be fixed size")
-        self.size = sum([ field.min_max_sizeof().min for field in self.fields ])
+        self.size = sum([field.min_max_sizeof().min for field in self.fields])
         if (self.size % 8) != 0:
             raise BitFieldNotInByteBoundry()
         self.size //= 8
-        
+
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
         bit_stream = BitStringIO(self.size)
         for io in self.fields:
@@ -52,7 +52,7 @@ class PositionalBitMarshal(FixedSizer, Marshal):
     def __init__(self, slices):
         super(PositionalBitMarshal, self).__init__()
         self.slices = slices
-        self.size = sum([ s.stop - s.start for s in slices ])
+        self.size = sum([s.stop - s.start for s in slices])
 
     def get_slices(self):
         return self.slices
@@ -80,10 +80,10 @@ class PositionalBitMarshal(FixedSizer, Marshal):
 class PositionalBitFieldListContainer(FixedSizer, FieldListContainer):
     def __init__(self, bit_size, fields):
         super(PositionalBitFieldListContainer, self).__init__(fields)
-        if not all([ field.is_fixed_size() for field in self.fields ]):
+        if not all([field.is_fixed_size() for field in self.fields]):
             raise InstructError("all fields in a bit field list must be fixed size")
 
-        field_bit_size = max([ max([ s.stop for s in field.marshal.get_slices() ]) for field in self.fields ])
+        field_bit_size = max([max([s.stop for s in field.marshal.get_slices()]) for field in self.fields])
         if bit_size is None:
             bit_size = field_bit_size
 
@@ -93,9 +93,9 @@ class PositionalBitFieldListContainer(FixedSizer, FieldListContainer):
         self.bit_size = bit_size
         if (self.bit_size % 8) != 0:
             raise BitFieldNotInByteBoundry()
-        
+
         self.size = self.bit_size // 8
-        
+
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
         bit_stream = BitStringIO(self.size)
         for field in self.fields:

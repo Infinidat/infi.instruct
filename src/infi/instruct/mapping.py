@@ -11,7 +11,7 @@ class FixedSizeMappingMarshal(FixedSizer, Marshal):
         for key, value in value_map.items():
             assert value not in self.reverse_value_map
             self.reverse_value_map[value] = key
-        
+
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         value = self.value_marshal.create_from_stream(stream, context, *args, **kwargs)
         return self.reverse_value_map[value]

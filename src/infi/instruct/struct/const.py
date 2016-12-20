@@ -38,4 +38,3 @@ class ConstField(Field):
         if value != self.value:
             raise InstructError("trying to set a new value (%s) to const field %s of class %s" %
                                 (value, self.name, type(obj)))
-

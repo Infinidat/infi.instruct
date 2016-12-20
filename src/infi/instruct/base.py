@@ -1,5 +1,4 @@
 import sys
-import types
 import collections
 from ._compat import StringIO, STRING_TYPES, PY2
 
@@ -11,7 +10,7 @@ class ReadOnlyContext(object):
     """
     def __init__(self, d={}):
         self.d = d
-        
+
     def get(self, key, default):
         return self.d.get(key, default)
 
@@ -30,13 +29,13 @@ class ReadOnlyContext(object):
         def _is_primitive(obj):
             return isinstance(obj, (int, bool, memoryview, float, list,
                                     tuple) + STRING_TYPES)
-        return ", ".join([ "%s=%s" % (key, repr(val) if _is_primitive(val) else "%s<%s>" % (type(val), id(val)))
-                           for key, val in self.d.items() ])
+        return ", ".join(["%s=%s" % (key, repr(val) if _is_primitive(val) else "%s<%s>" % (type(val), id(val)))
+                          for key, val in self.d.items()])
 
 class WritableContext(ReadOnlyContext):
     def __init__(self, d=None):
         self.d = d or {}
-    
+
     def put(self, key, value):
         self.d[key] = value
 
@@ -57,7 +56,7 @@ class MinMax(collections.namedtuple('MinMax', 'min max')):
     You can access the min/max values by the *min* or *max* properties or by index ([0], [1]).
     """
     __slots__ = ()
-    
+
     def __new__(cls, min_val_or_tuple=0, max_val=sys.maxsize):
         """
         Initialize a new MinMax instance. This initializer works in four different modes:
@@ -71,7 +70,7 @@ class MinMax(collections.namedtuple('MinMax', 'min max')):
             min_val, max_val = min_val_or_tuple
         else:
             min_val = min_val_or_tuple
-        
+
         assert min_val <= max_val
         return super(MinMax, cls).__new__(cls, max(0, min_val), min(max_val, sys.maxsize))
 
@@ -93,7 +92,7 @@ ZERO_MIN_MAX = MinMax(0, 0)
 class MarshalBase(object):
     def sizeof(self, obj):
         raise NotImplementedError()
-    
+
     # The following methods _should_ be implemented by the user:
     #
     def min_max_sizeof(self):
@@ -137,7 +136,7 @@ class Marshal(MarshalBase):
 
     def write_to_string(self, obj, context=EMPTY_CONTEXT):
         io = StringIO()
-        instance = self.write_to_stream(obj, io, context)
+        self.write_to_stream(obj, io, context)
         result = io.getvalue()
         io.close()
         return result

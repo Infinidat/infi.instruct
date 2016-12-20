@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 
 import struct
-import types
 from infi.exceptools import chain as chain_exceptions
 
 from .base import FixedSizer, Marshal, EMPTY_CONTEXT
@@ -24,13 +23,13 @@ class NumericMarshal(FixedSizer, Marshal):
             raise NotEnoughDataError(expected=self.size, actually_read=len(packed_value))
         try:
             return struct.unpack(self.format_string, packed_value)[0]
-        except struct.error as e:
+        except struct.error:
             raise chain_exceptions(InstructError("Unpacking error occurred"))
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         try:
             stream.write(struct.pack(self.format_string, obj))
-        except struct.error as e:
+        except struct.error:
             raise chain_exceptions(InstructError("Packing error occurred"))
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):

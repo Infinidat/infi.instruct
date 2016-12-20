@@ -1,4 +1,4 @@
-from .func_call import FuncCallReference, FuncCallReference
+from .func_call import FuncCallReference
 from .reference import _repr_peel_obj_ref_for_str
 
 

@@ -20,6 +20,6 @@ class OptionalField(Field):
         if value is None:
             return 0
         return self.marshal.sizeof(value)
-        
+
     def min_max_sizeof(self):
         return MinMax(0, self.marshal.min_max_sizeof().max)

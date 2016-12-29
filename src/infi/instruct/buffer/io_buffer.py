@@ -1,6 +1,7 @@
 import math
 import collections
 from .._compat import is_string_or_bytes, range, PY2
+from six import integer_types
 
 
 def float_to_byte_bit_pair(n):
@@ -97,7 +98,7 @@ class BitView(collections.Sequence):
             start = self._translate_offset(key.start if key.start is not None else 0)
             stop = self._translate_offset(key.stop if key.stop is not None else self.length())
             assert start <= stop and start >= 0, "start={0!r}, stop={1!r}".format(start, stop)
-        elif isinstance(key, (float, int)):
+        elif isinstance(key, integer_types + (float,)):
             start = self._translate_offset(key)
             stop = start + 1
         else:
@@ -256,7 +257,7 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
         elif isinstance(value, collections.Iterable):
             value = bytearray(value)
             value_len = len(value)
-        elif isinstance(value, int):
+        elif isinstance(value, integer_types):
             # Short circuit: make bit ranges accept int values by their bit length.
             bit_length = max(1, value.bit_length())
             if bit_length > int_value_len * 8:

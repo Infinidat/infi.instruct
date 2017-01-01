@@ -30,7 +30,7 @@ class BufferTestCase(TestCase):
             f_int = int_field(where=bytes_ref[0:3])
         foo = Foo()
         foo.f_int = 0x42
-	self.assertEqual(b"\x42\x00\x00", foo.pack())
+        self.assertEqual(b"\x42\x00\x00", foo.pack())
         foo.unpack(b"\xFF\x00\x00")
         self.assertEqual(255, foo.f_int)
 
@@ -39,7 +39,7 @@ class BufferTestCase(TestCase):
             f_int = int_field(where=bytes_ref[0:5])
         foo = Foo()
         foo.f_int = 0x4241403938
-	self.assertEqual(b"\x38\x39\x40\x41\x42", foo.pack())
+        self.assertEqual(b"\x38\x39\x40\x41\x42", foo.pack())
         foo.unpack(b"\xFF\x00\x00\x00\xFE")
         self.assertEqual(255+(254<<32), foo.f_int)
 
@@ -47,8 +47,8 @@ class BufferTestCase(TestCase):
         class Foo(Buffer):
             f_int = int_field(where=bytes_ref[0:7])
         foo = Foo()
-        foo.f_int = 0x4241403f3e3d3cL
-	self.assertEqual(b"\x3c\x3d\x3e\x3f\x40\x41\x42", foo.pack())
+        foo.f_int = 0x4241403f3e3d3c
+        self.assertEqual(b"\x3c\x3d\x3e\x3f\x40\x41\x42", foo.pack())
         foo.unpack(b"\xFF\x00\x00\x00\x00\x00\xFE")
         self.assertEqual(255+(254<<48), foo.f_int)
 
@@ -66,7 +66,7 @@ class BufferTestCase(TestCase):
             f_int = le_int_field(where=bytes_ref[0:3])
         foo = Foo()
         foo.f_int = 0x123456
-	self.assertEqual(b"\x56\x34\x12", foo.pack())
+        self.assertEqual(b"\x56\x34\x12", foo.pack())
         foo.unpack(b"\x0a\x0b\x0c")
         self.assertEqual(0x0c0b0a, foo.f_int)
 
@@ -75,7 +75,7 @@ class BufferTestCase(TestCase):
             f_int = le_int_field(where=bytes_ref[0:5])
         foo = Foo()
         foo.f_int = 0x123456789a
-	self.assertEqual(b"\x9a\x78\x56\x34\x12", foo.pack())
+        self.assertEqual(b"\x9a\x78\x56\x34\x12", foo.pack())
         foo.unpack(b"\x0a\x0b\x0c\x0d\x0e")
         self.assertEqual(0x0e0d0c0b0a, foo.f_int)
 
@@ -84,7 +84,7 @@ class BufferTestCase(TestCase):
             f_int = le_int_field(where=bytes_ref[0:7])
         foo = Foo()
         foo.f_int = 0x123456789abcde
-	self.assertEqual(b"\xde\xbc\x9a\x78\x56\x34\x12", foo.pack())
+        self.assertEqual(b"\xde\xbc\x9a\x78\x56\x34\x12", foo.pack())
         foo.unpack(b"\x0a\x0b\x0c\x0d\x0e\x0f\x01")
         self.assertEqual(0x010f0e0d0c0b0a, foo.f_int)
 
@@ -102,7 +102,7 @@ class BufferTestCase(TestCase):
             f_int = be_int_field(where=bytes_ref[0:3])
         foo = Foo()
         foo.f_int = 0x123456
-	self.assertEqual(b"\x12\x34\x56", foo.pack())
+        self.assertEqual(b"\x12\x34\x56", foo.pack())
         foo.unpack(b"\x0a\x0b\x0c")
         self.assertEqual(0x0a0b0c, foo.f_int)
 
@@ -111,7 +111,7 @@ class BufferTestCase(TestCase):
             f_int = be_int_field(where=bytes_ref[0:5])
         foo = Foo()
         foo.f_int = 0x123456789a
-	self.assertEqual(b"\x12\x34\x56\x78\x9a", foo.pack())
+        self.assertEqual(b"\x12\x34\x56\x78\x9a", foo.pack())
         foo.unpack(b"\x0a\x0b\x0c\x0d\x0e")
         self.assertEqual(0x0a0b0c0d0e, foo.f_int)
 
@@ -120,7 +120,7 @@ class BufferTestCase(TestCase):
             f_int = be_int_field(where=bytes_ref[0:7])
         foo = Foo()
         foo.f_int = 0x123456789abcde
-	self.assertEqual(b"\x12\x34\x56\x78\x9a\xbc\xde", foo.pack())
+        self.assertEqual(b"\x12\x34\x56\x78\x9a\xbc\xde", foo.pack())
         foo.unpack(b"\x0a\x0b\x0c\x0d\x0e\x0f\x01")
         self.assertEqual(0x0a0b0c0d0e0f01, foo.f_int)
 

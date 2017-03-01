@@ -1,3 +1,4 @@
+# flake8: noqa
 from .reference import Reference, Context, CyclicReferenceError, ObjectReference, NumericCastReference
 from .func_call import FuncCallReference
 from .builtins import (LengthFuncCallReference, GetAttrReference, SetAttrReference, AssignAttrReference,

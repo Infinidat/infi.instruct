@@ -4,7 +4,7 @@ from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
 from infi.instruct.buffer.macros import (int_field, float_field, str_field, buffer_field, list_field,
                                          bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref, num_ref,
-                                         json_field)
+                                         json_field, le_int_field)
 from infi.instruct._compat import range, PY2
 
 
@@ -24,6 +24,105 @@ class BufferTestCase(TestCase):
         self.assertEqual(struct.pack("=l", foo.f_int), foo.pack())
         foo.unpack(b"\xFF\x00\x00\x00")
         self.assertEqual(255, foo.f_int)
+
+    def test_buffer_pack_unpack__int_3_bytes(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:3])
+        foo = Foo()
+        foo.f_int = 0x42
+        self.assertEqual(b"\x42\x00\x00", foo.pack())
+        foo.unpack(b"\xFF\x00\x00")
+        self.assertEqual(255, foo.f_int)
+
+    def test_buffer_pack_unpack__int_5_bytes(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:5])
+        foo = Foo()
+        foo.f_int = 0x4241403938
+        self.assertEqual(b"\x38\x39\x40\x41\x42", foo.pack())
+        foo.unpack(b"\xFF\x00\x00\x00\xFE")
+        self.assertEqual(255+(254<<32), foo.f_int)
+
+    def test_buffer_pack_unpack__int_7_bytes(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:7])
+        foo = Foo()
+        foo.f_int = 0x4241403f3e3d3c
+        self.assertEqual(b"\x3c\x3d\x3e\x3f\x40\x41\x42", foo.pack())
+        foo.unpack(b"\xFF\x00\x00\x00\x00\x00\xFE")
+        self.assertEqual(255+(254<<48), foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:4])
+        foo = Foo()
+        foo.f_int = 0x12345678
+        self.assertEqual(struct.pack("<l", foo.f_int), foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d")
+        self.assertEqual(0x0d0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint_3_bytes(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:3])
+        foo = Foo()
+        foo.f_int = 0x123456
+        self.assertEqual(b"\x56\x34\x12", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c")
+        self.assertEqual(0x0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint_5_bytes(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:5])
+        foo = Foo()
+        foo.f_int = 0x123456789a
+        self.assertEqual(b"\x9a\x78\x56\x34\x12", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e")
+        self.assertEqual(0x0e0d0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint_7_bytes(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:7])
+        foo = Foo()
+        foo.f_int = 0x123456789abcde
+        self.assertEqual(b"\xde\xbc\x9a\x78\x56\x34\x12", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e\x0f\x01")
+        self.assertEqual(0x010f0e0d0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:4])
+        foo = Foo()
+        foo.f_int = 0x12345678
+        self.assertEqual(struct.pack(">l", foo.f_int), foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d")
+        self.assertEqual(0x0a0b0c0d, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint_3_bytes(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:3])
+        foo = Foo()
+        foo.f_int = 0x123456
+        self.assertEqual(b"\x12\x34\x56", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c")
+        self.assertEqual(0x0a0b0c, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint_5_bytes(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:5])
+        foo = Foo()
+        foo.f_int = 0x123456789a
+        self.assertEqual(b"\x12\x34\x56\x78\x9a", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e")
+        self.assertEqual(0x0a0b0c0d0e, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint_7_bytes(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:7])
+        foo = Foo()
+        foo.f_int = 0x123456789abcde
+        self.assertEqual(b"\x12\x34\x56\x78\x9a\xbc\xde", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e\x0f\x01")
+        self.assertEqual(0x0a0b0c0d0e0f01, foo.f_int)
 
     def test_buffer_pack_unpack__float(self):
         class Foo(Buffer):

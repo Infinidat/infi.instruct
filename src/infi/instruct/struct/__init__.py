@@ -1,4 +1,3 @@
-import types
 from array import array
 from .._compat import StringIO, PY2
 from six import add_metaclass
@@ -12,13 +11,13 @@ def copy_if_supported(obj):
 class FieldMarshal(MarshalBase):
     def prepare_class(self, cls):
         pass
-    
+
     def prepare_instance(self, obj, args, kwargs):
         pass
-    
+
     def write_fields(self, obj, stream, context=EMPTY_CONTEXT):
         raise NotImplementedError()
-    
+
     def read_fields(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         raise NotImplementedError()
 
@@ -32,7 +31,7 @@ class FieldBase(FieldMarshal):
 
     def read_fields(self, obj, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         self.set_value(obj, self.marshal.create_from_stream(stream, context, *args, **kwargs))
-        
+
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return self.marshal.to_repr(self.get_value(obj), context)
 
@@ -60,13 +59,13 @@ class Field(FieldBase):
         super(Field, self).__init__(marshal)
         self.name = name
         self.default = default
-    
+
     def prepare_instance(self, obj, args, kwargs):
         if self.name in kwargs:
             setattr(obj, self.name, kwargs.pop(self.name))
         elif not hasattr(obj, self.name):
             setattr(obj, self.name, copy_if_supported(self.default))
-    
+
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return "%s=%s" % (self.name, super(Field, self).to_repr(obj, context))
 
@@ -101,13 +100,13 @@ class FieldListContainer(FieldMarshal):
             field.write_fields(obj, stream, context)
 
     def to_repr(self, obj, context=EMPTY_CONTEXT):
-        return ", ".join([ field.to_repr(obj, context) for field in self.fields ])
+        return ", ".join([field.to_repr(obj, context) for field in self.fields])
 
     def sizeof(self, obj):
-        return sum([ field.sizeof(obj) for field in self.fields ])
+        return sum([field.sizeof(obj) for field in self.fields])
 
     def min_max_sizeof(self):
-        return sum([ field.min_max_sizeof() for field in self.fields ], ZERO_MIN_MAX)
+        return sum([field.min_max_sizeof() for field in self.fields], ZERO_MIN_MAX)
 
 class StructType(type):
     def __new__(cls, name, bases, attrs):
@@ -131,7 +130,7 @@ class StructType(type):
             raise StructNotWellDefinedError("Class %s is missing a _fields_ declaration" % (name,))
 
         fields = getattr(new_cls, "_fields_")
-        
+
         if isinstance(fields, (list, tuple)):
             fields = FieldListContainer(fields)
 
@@ -168,7 +167,7 @@ class Struct(object):
     def __init__(self, *args, **kwargs):
         super(Struct, self).__init__()
         type(self)._container_.prepare_instance(self, args, kwargs)
-        
+
     @classmethod
     def write_to_stream(cls, obj, stream, context=EMPTY_CONTEXT):
         context = cls.get_updated_context(obj, context)
@@ -184,7 +183,7 @@ class Struct(object):
     @classmethod
     def min_max_sizeof(cls):
         return cls._container_.min_max_sizeof()
-    
+
     @classmethod
     def sizeof(cls, obj):
         return cls._container_.sizeof(obj)

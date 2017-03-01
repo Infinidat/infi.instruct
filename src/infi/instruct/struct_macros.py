@@ -1,5 +1,3 @@
-import types
-
 from .struct import Struct, Field, AnonymousField
 from .struct.optional import OptionalField
 from .struct.const import ConstField as OrigConstField
@@ -41,8 +39,8 @@ def ConstField(name, value, marshal=None):
     return OrigConstField(name, marshal, value)
 
 def BitFields(*args):
-    if any([ isinstance(field.marshal, PositionalBitMarshal) for field in args ]):
-        assert all([ isinstance(field.marshal, PositionalBitMarshal) for field in args ])
+    if any([isinstance(field.marshal, PositionalBitMarshal) for field in args]):
+        assert all([isinstance(field.marshal, PositionalBitMarshal) for field in args])
         return PositionalBitFieldListContainer(None, args)
     else:
         return BitFieldListContainer(args)
@@ -66,7 +64,7 @@ class BitSlicer(object):
         if isinstance(key, (tuple, list)):
             return list(key)
         elif isinstance(key, slice):
-            return [ key ]
+            return [key]
 
 Bits = BitSlicer()
 

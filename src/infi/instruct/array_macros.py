@@ -11,4 +11,3 @@ def SumSizeArray(name, size_io, element_io, default=None):
 
 def VarSizeArray(name, size_io, element_io, default=None):
     return Field(name, VarSizeArrayMarshal(size_io, element_io), default)
-

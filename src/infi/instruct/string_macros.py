@@ -1,5 +1,3 @@
-import types
-
 from .string import *
 from .struct import Field
 

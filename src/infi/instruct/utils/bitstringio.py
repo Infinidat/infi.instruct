@@ -31,13 +31,13 @@ class BitStringIO(object):
             bitmask = (1 << chunk_to_write) - 1
             self.value[byte_i] |= (value >> n) & bitmask
             byte_i += 1
-        
+
         self.position += bits_to_write
 
     def read(self, bits_to_read):
         if len(self.value) * 8 < (bits_to_read + self.position):
             raise IOError("attempting to read past the end of the buffer")
-        
+
         byte_i, bit_i = (self.position // 8, self.position % 8)
         result = 0
         bits_read = 0

@@ -1,6 +1,7 @@
 import math
 import struct
 import json
+from sys import byteorder
 
 from .io_buffer import BitAwareByteArray, BitView
 from .buffer import BufferType
@@ -55,6 +56,11 @@ def pack_bit_int(value, byte_size, **kwargs):
     assert byte_size is not None
     result = BitAwareByteArray(bytearray(int(math.ceil(byte_size))), 0, byte_size)
     result[0:] = value
+    # BitAwareByteArray is little-endian when set with an integer type
+    # regardless of the system byteorder.
+    if kwargs['endian'] == 'big' or ((kwargs['endian'] == 'native') and
+                                     (byteorder == 'big')):
+        result.reverse()
     return result
 
 
@@ -89,7 +95,12 @@ def pack_int(value, **kwargs):
 
 def unpack_bit_int(buffer, byte_size, **kwargs):
     result = 0
-    l = reversed(buffer[0:byte_size]) if kwargs.get("endian", "big") else buffer[0:byte_size]
+
+    if (kwargs['endian'] == 'little') or ((kwargs['endian'] == 'native') and
+                                          (byteorder == 'little')):
+        l = reversed(buffer[0:byte_size])
+    else:
+        l = buffer[0:byte_size]
     for b in l:
         result *= 256
         result += b

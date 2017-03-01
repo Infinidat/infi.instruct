@@ -26,13 +26,13 @@ class MarshalWithField(Marshal):
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return self.marshal.to_repr(obj, context)
 
-__primitive_types__ = [ 'UBInt8', 'UBInt16', 'UBInt32', 'UBInt64',
-                        'SBInt8', 'SBInt16', 'SBInt32', 'SBInt64',
-                        'ULInt8', 'ULInt16', 'ULInt32', 'ULInt64',
-                        'SLInt8', 'SLInt16', 'SLInt32', 'SLInt64',
-                        'UNInt8', 'UNInt16', 'UNInt32', 'UNInt64',
-                        'SNInt8', 'SNInt16', 'SNInt32', 'SNInt64',
-                        'BFloat32', 'LFloat32', 'NFloat32', 'BFloat64', 'LFloat64', 'NFloat64' ]
+__primitive_types__ = ['UBInt8', 'UBInt16', 'UBInt32', 'UBInt64',
+                       'SBInt8', 'SBInt16', 'SBInt32', 'SBInt64',
+                       'ULInt8', 'ULInt16', 'ULInt32', 'ULInt64',
+                       'SLInt8', 'SLInt16', 'SLInt32', 'SLInt64',
+                       'UNInt8', 'UNInt16', 'UNInt32', 'UNInt64',
+                       'SNInt8', 'SNInt16', 'SNInt32', 'SNInt64',
+                       'BFloat32', 'LFloat32', 'NFloat32', 'BFloat64', 'LFloat64', 'NFloat64']
 
 for t in __primitive_types__:
     v = vars()

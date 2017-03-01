@@ -11,22 +11,22 @@ class StructSelectorMarshal(Marshal):
         self.key_marshal = key_marshal
         self.mapping = {}
         self.default = default
-        
+
         for key, struct in self.mapping:
             if not isinstance(struct, Struct):
                 raise ValueError("mapping key %s must be a subclass of Struct" % key)
             self.mapping[key] = struct
 
-        structs = values_list(mapping) + ([ self.default ] if self.default is not None else [])
+        structs = values_list(mapping) + ([self.default] if self.default is not None else [])
 
-        self.min_max_size = sum([ struct.min_max_sizeof() for struct in structs ], ZERO_MIN_MAX)
+        self.min_max_size = sum([struct.min_max_sizeof() for struct in structs], ZERO_MIN_MAX)
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         type(obj).write_to_stream(obj, stream, context)
-        
+
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         rstream = ReadAheadStream(stream)
-        
+
         rstream.set_read_ahead(True)
         key = self.key_marshal.create_from_stream(rstream, context)
         rstream.set_read_ahead(False)
@@ -43,10 +43,10 @@ class StructSelectorMarshal(Marshal):
             raise InstructError("deserialized key %s with type %s but still have bytes in read-ahead buffer" %
                                 (self.key_marshal.to_repr(key, context), marshal))
         return result
-    
+
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return type(obj).to_repr(obj, context)
-    
+
     def sizeof(self, obj):
         return type(obj).sizeof(obj)
 
@@ -61,12 +61,12 @@ class FuncStructSelectorMarshal(Marshal):
 
     def write_to_stream(self, obj, stream, context=EMPTY_CONTEXT):
         type(obj).write_to_stream(obj, stream, context)
-        
+
     def create_from_stream(self, stream, context=EMPTY_CONTEXT, *args, **kwargs):
         rstream = ReadAheadStream(stream)
-        
+
         rstream.set_read_ahead(True)
-        
+
         reader = self.func(rstream, context)
 
         rstream.set_read_ahead(False)
@@ -76,10 +76,10 @@ class FuncStructSelectorMarshal(Marshal):
             raise InstructError("deserialized object %s but still have bytes in read-ahead buffer" %
                                 (result.to_repr(context),))
         return result
-    
+
     def to_repr(self, obj, context=EMPTY_CONTEXT):
         return type(obj).to_repr(obj, context)
-    
+
     def sizeof(self, obj):
         return type(obj).sizeof(obj)
 

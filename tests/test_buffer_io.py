@@ -12,19 +12,20 @@ class IOBufferTestCase(TestCase):
         buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
         self.assertEqual(1, buf[0])
         self.assertEqual(2, buf[1])
-        self.assertEqual(1, buf[1.125])
+        self.assertEqual(4, buf[1.125])
         self.assertEqual(4, buf[2])
-        self.assertEqual(2, buf[2.125])
-        self.assertEqual(1, buf[2.25])
-        self.assertEqual(0, buf[2.375])
+        self.assertEqual(8, buf[2.125])
+        self.assertEqual(16, buf[2.25])
+        self.assertEqual(32, buf[2.375])
 
         buf = BitAwareByteArray(bytearray((128, 1)), 0, 2)
-        self.assertEqual(3, buf[1 - 0.125])
+        self.assertEqual(0, buf[0.125])
+        self.assertEqual(128, buf[1 + 0.125 * 7])
 
         buf = BitAwareByteArray(bytearray((2, 4)), 0.125, 2)
-        self.assertEqual(1, buf[0])
-        self.assertEqual(2, buf[1])
-        self.assertEqual(1, buf[1.125])
+        self.assertEqual(4, buf[0])
+        self.assertEqual(8, buf[1])
+        self.assertEqual(16, buf[1.125])
 
     def test_getitem__range(self):
         buf = BitAwareByteArray(bytearray((1, 2, 4, 128, 1)), 0, 5)
@@ -40,15 +41,15 @@ class IOBufferTestCase(TestCase):
         self.assertEqual([], list(buf[-10:-5]))
 
     def test_setitem__byte(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
+        buf = BitAwareByteArray((1, 2, 4))
         buf[0:1] = 3
         self.assertEqual([3, 2, 4], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
+        buf = BitAwareByteArray((1, 2, 4))
         buf[0.125:1.125] = 3
         self.assertEqual([7, 2, 4], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
+        buf = BitAwareByteArray((1, 2, 4))
         buf[0.125:1.125] = 0x83
         self.assertEqual([7, 3, 4], list(buf))
 
@@ -162,8 +163,8 @@ class IOBufferTestCase(TestCase):
             ba1 = self._create_random_bit_array()
             ba2 = self._create_random_bit_array()
             ba = ba1 + ba2
-            bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=float(ba1.length()) / 8)
-            bv2 = BitAwareByteArray(self._bitarray_to_bytes(ba2), stop=float(ba2.length()) / 8)
+            bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=ba1.length() / 8.0)
+            bv2 = BitAwareByteArray(self._bitarray_to_bytes(ba2), stop=ba2.length() / 8.0)
             bv = bv1 + bv2
             self.assertEqualBitArrayBitView(ba, bv)
 
@@ -201,9 +202,9 @@ class IOBufferTestCase(TestCase):
         self.assertEquals(list(bv1), list(a))
 
     def test_insert_zeros(self):
-        bv = BitAwareByteArray(bytearray(1), 0, 0.5)
-        bv[0.5:1.5] = BitView((1,))
-        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('000000010000'), bv)
+        bv = BitAwareByteArray((0x80,), 0, 0.5)
+        bv[0.5:1.5] = BitView((0x80,))
+        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('100010000000'), bv)
 
     def test_insert_zeros_1(self):
         bv = BitAwareByteArray(bytearray((0xFF, 0, 0, 0)))
@@ -228,22 +229,16 @@ class IOBufferTestCase(TestCase):
         self.assertEquals(list(a), [2])
 
     def assertEqualBitArrayBitView(self, ba, bv):
-        self.assertEqual(ba.length(), 8 * bv.length())
-        ba_bytes = self._bitarray_to_bytes(ba)
-        if PY2:
-            bv_bytes = str(bv)
-        else:
-            bv_bytes = bv.to_bytes()
-        self.assertEqual(ba_bytes, bv_bytes)
+        self.assertEqual(ba.to01(), bv.buffer.bin)
 
     def _bitarray_from_bitstring(self, str):
-        return bitarray("".join(reversed(str)), endian='little')
+        return bitarray("".join(str), endian='big')
 
     def _create_random_bit_array(self):
         length_in_bits = random.randint(0, 8 * 16)
-        return bitarray("".join(random.choice(('0', '1')) for i in range(length_in_bits)), endian='little')
+        return bitarray("".join(random.choice(('0', '1')) for i in range(length_in_bits)), endian='big')
 
     def _bitarray_to_bytes(self, b):
-        copy = bitarray(b, endian='little')
+        copy = bitarray(b, endian='big')
         copy.fill()
         return bytearray(copy.tobytes())

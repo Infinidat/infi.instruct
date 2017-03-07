@@ -1,6 +1,7 @@
 import math
 import struct
 import json
+from bitstring import Bits
 from sys import byteorder
 
 from .io_buffer import BitAwareByteArray, BitView
@@ -51,12 +52,21 @@ ENDIAN_NAME_TO_FORMAT = {'unspecified': '@', 'native': '=', 'big': '>', 'little'
 # integer support
 #
 
+ENDIAN_NAME_TO_BITSTRING_ARG = {'unspecified': 'int', 'native': 'intne', 'big': 'intbe', 'little': 'intle'}
+
+def _endian_and_sign_to_bitstring_name(endian, sign):
+    t = ENDIAN_NAME_TO_BITSTRING_ARG[endian]
+    if sign == 'unsigned':
+        t = 'u' + t
+    return t
 
 def pack_bit_int(value, byte_size, **kwargs):
     assert byte_size is not None
-    result = BitAwareByteArray(bytearray(int(math.ceil(byte_size))), 0, byte_size)
-    result[0:] = value
-    return result
+    if byte_size % 1 != 0:  # no big/little endian if the size is not byte aligned
+        typ = _endian_and_sign_to_bitstring_name('unspecified', kwargs.get('sign', 'signed'))
+    else:
+        typ = _endian_and_sign_to_bitstring_name(kwargs.get('endian', 'unspecified'), kwargs.get('sign', 'signed'))
+    return Bits(**{typ: value, 'length': int(byte_size * 8)}).tobytes()
 
 
 def format_from_struct_int_arguments(format_char, kwargs):
@@ -89,12 +99,12 @@ def pack_int(value, **kwargs):
 
 
 def unpack_bit_int(buffer, byte_size, **kwargs):
-    result = 0
-    l = reversed(buffer[0:byte_size]) if kwargs.get("endian", "big") else buffer[0:byte_size]
-    for b in l:
-        result *= 256
-        result += b
-    return result, byte_size
+    assert byte_size is not None
+    if byte_size % 1 != 0:  # no big/little endian if not byte aligned
+        typ = _endian_and_sign_to_bitstring_name('unspecified', kwargs.get('sign', 'signed'))
+    else:
+        typ = _endian_and_sign_to_bitstring_name(kwargs.get('endian', 'unspecified'), kwargs.get('sign', 'signed'))
+    return getattr(Bits(bytes=buffer.to_bytearray(), length=int(byte_size * 8)), typ), byte_size
 
 
 def unpack_struct_int(buffer, format_char, **kwargs):
@@ -112,6 +122,7 @@ STRUCT_INT_UNPACKERS = {
 
 
 def unpack_int(buffer, **kwargs):
+    assert isinstance(buffer, BitView), "buffer is not a BitView/BitAwareByteArray but instead {}".format(type(buffer))
     byte_size = kwargs_fractional_byte_size(kwargs)
     if byte_size in STRUCT_INT_UNPACKERS:
         return STRUCT_INT_UNPACKERS[byte_size](buffer, **kwargs)

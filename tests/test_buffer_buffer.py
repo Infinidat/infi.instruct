@@ -25,6 +25,105 @@ class BufferTestCase(TestCase):
         foo.unpack(b"\xFF\x00\x00\x00")
         self.assertEqual(255, foo.f_int)
 
+    def test_buffer_pack_unpack__int_3_bytes(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:3])
+        foo = Foo()
+        foo.f_int = 0x42
+        self.assertEqual(b"\x42\x00\x00", foo.pack())
+        foo.unpack(b"\xFF\x00\x00")
+        self.assertEqual(255, foo.f_int)
+
+    def test_buffer_pack_unpack__int_5_bytes(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:5])
+        foo = Foo()
+        foo.f_int = 0x4241403938
+        self.assertEqual(b"\x38\x39\x40\x41\x42", foo.pack())
+        foo.unpack(b"\xFF\x00\x00\x00\xFE")
+        self.assertEqual(255+(254<<32), foo.f_int)
+
+    def test_buffer_pack_unpack__int_7_bytes(self):
+        class Foo(Buffer):
+            f_int = int_field(where=bytes_ref[0:7])
+        foo = Foo()
+        foo.f_int = 0x4241403f3e3d3c
+        self.assertEqual(b"\x3c\x3d\x3e\x3f\x40\x41\x42", foo.pack())
+        foo.unpack(b"\xFF\x00\x00\x00\x00\x00\xFE")
+        self.assertEqual(255+(254<<48), foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:4])
+        foo = Foo()
+        foo.f_int = 0x12345678
+        self.assertEqual(struct.pack("<l", foo.f_int), foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d")
+        self.assertEqual(0x0d0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint_3_bytes(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:3])
+        foo = Foo()
+        foo.f_int = 0x123456
+        self.assertEqual(b"\x56\x34\x12", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c")
+        self.assertEqual(0x0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint_5_bytes(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:5])
+        foo = Foo()
+        foo.f_int = 0x123456789a
+        self.assertEqual(b"\x9a\x78\x56\x34\x12", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e")
+        self.assertEqual(0x0e0d0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_le_uint_7_bytes(self):
+        class Foo(Buffer):
+            f_int = le_int_field(where=bytes_ref[0:7])
+        foo = Foo()
+        foo.f_int = 0x123456789abcde
+        self.assertEqual(b"\xde\xbc\x9a\x78\x56\x34\x12", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e\x0f\x01")
+        self.assertEqual(0x010f0e0d0c0b0a, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:4])
+        foo = Foo()
+        foo.f_int = 0x12345678
+        self.assertEqual(struct.pack(">l", foo.f_int), foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d")
+        self.assertEqual(0x0a0b0c0d, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint_3_bytes(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:3])
+        foo = Foo()
+        foo.f_int = 0x123456
+        self.assertEqual(b"\x12\x34\x56", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c")
+        self.assertEqual(0x0a0b0c, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint_5_bytes(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:5])
+        foo = Foo()
+        foo.f_int = 0x123456789a
+        self.assertEqual(b"\x12\x34\x56\x78\x9a", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e")
+        self.assertEqual(0x0a0b0c0d0e, foo.f_int)
+
+    def test_buffer_pack_unpack_be_uint_7_bytes(self):
+        class Foo(Buffer):
+            f_int = be_int_field(where=bytes_ref[0:7])
+        foo = Foo()
+        foo.f_int = 0x123456789abcde
+        self.assertEqual(b"\x12\x34\x56\x78\x9a\xbc\xde", foo.pack())
+        foo.unpack(b"\x0a\x0b\x0c\x0d\x0e\x0f\x01")
+        self.assertEqual(0x0a0b0c0d0e0f01, foo.f_int)
+
     def test_buffer_pack_unpack__float(self):
         class Foo(Buffer):
             f_float = float_field(where=bytes_ref[0:4])
@@ -79,70 +178,6 @@ class BufferTestCase(TestCase):
         foo.f_int = 0
         foo.f_str = 'hello world'
         self.assertEqual(struct.pack("=L", len(foo.f_str) * 2) + b'hello world', foo.pack())
-
-    def test_buffer_bits__simple(self):
-        class Foo(Buffer):
-            f_int = int_field(sign='unsigned',
-                              where=(bytes_ref[7].bits[0:4] +
-                                     bytes_ref[6].bits[0:4] +
-                                     bytes_ref[5].bits[0:4] +
-                                     bytes_ref[4].bits[0:4] +
-                                     bytes_ref[3].bits[0:4] +
-                                     bytes_ref[2].bits[0:4] +
-                                     bytes_ref[1].bits[0:4] +
-                                     bytes_ref[0].bits[0:4]))
-
-        self.assertEqual(7.5, Foo.byte_size)
-        for n in (0x12345678, 0x87654321, 0, 1, 0x10000000, 0xFF000000):
-            foo = Foo()
-            foo.f_int = n
-            packed_value = foo.pack()
-            self.assertEqual(8, len(packed_value))
-            packed_result = bytearray(8)
-            for i in range(8):
-                packed_result[7 - i] = (foo.f_int >> (i * 4)) & 0x0F
-            self.assertEqual(packed_result, packed_value)
-            foo = Foo()
-            foo.unpack(packed_result)
-            self.assertEqual(foo.f_int, n)
-
-    def test_buffer_bits__complex(self):
-        class Foo(Buffer):
-            f_int = int_field(sign='unsigned',
-                              where=(bytes_ref[0:2].bits[4:12] + bytes_ref[2:4].bits[4:12] +
-                                     bytes_ref[4:6].bits[4:12] + bytes_ref[6:8].bits[4:12]))
-
-        self.assertEqual(7.5, Foo.byte_size)
-        for n in (0xFF000000, 0x12345678, 0x87654321, 0, 1, 0x10000000, 0xFF000000):
-            foo = Foo()
-            foo.f_int = n
-            packed_value = foo.pack()
-            self.assertEqual(8, len(packed_value))
-
-            ba = bitarray('0' * (8 * 8), endian='little')
-            int_pack = struct.pack("<L", foo.f_int)
-            for i in range(4):
-                b = bitarray(endian='little')
-                b.frombytes(bytes([int_pack[i]]) if not PY2 else int_pack[i])
-                ba[i * 2 * 8 + 4:i * 2 * 8 + 4 + 8] = b
-
-            self.assertEqual(ba.tobytes(), packed_value)
-
-    def test_buffer_bits__partial(self):
-        class Foo(Buffer):
-            f_int = int_field(where=(bytes_ref[0] + bytes_ref[1].bits[0:4]))
-
-        class Foo2(Buffer):
-            f_int = int_field(where=(bytes_ref[1].bits[0:4] + bytes_ref[0]))
-
-        self.assertEqual(1.5, Foo.byte_size)
-        foo = Foo()
-        foo.f_int = 0xcff
-        self.assertEquals(foo.pack(), b"\xff\x0c")
-
-        foo = Foo2()
-        foo.f_int = 0xcff
-        self.assertEquals(foo.pack(), b"\xcf\x0f")
 
     def test_buffer_bits__add(self):
         class CoolingElementInfo(Buffer):

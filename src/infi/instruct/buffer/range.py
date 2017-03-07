@@ -68,6 +68,18 @@ class SequentialRange(SequentialRangeMixin):
             return None
         return self.stop - self.start
 
+    def is_fractional(self):
+        """
+        :returns: True if the range contains fractions (bits), False if not
+        :rtype: bool
+        """
+        start_fractional = self.start % 1 != 0
+        if self.is_open():
+            return start_fractional
+        else:
+            stop_fractional = self.stop % 1 != 0
+            return start_fractional or stop_fractional
+
     def max_stop(self):
         """
         :returns: length of range if a closed range or None if open range.

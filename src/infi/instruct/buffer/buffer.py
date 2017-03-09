@@ -109,10 +109,6 @@ class Buffer(object):
                 try:
                     ctx.output_buffer.set(field.pack_ref.deref(ctx), field.pack_absolute_position_ref.deref(ctx))
                 except:
-                    # XXX TEST XXX
-                    import traceback
-                    traceback.print_exc()
-                    # XXX TEST XXX
                     raise chain_exceptions(InstructBufferError("Pack error occured", ctx, type(self),
                                                                field.attr_name()))
 
@@ -145,10 +141,6 @@ class Buffer(object):
                 else:
                     setattr(self, field.attr_name(), None)
             except:
-                # XXX TEST XXX
-                import traceback
-                traceback.print_exc()
-                # XXX TEST XXX
                 raise chain_exceptions(InstructBufferError("Unpack error occurred", ctx, type(self), field.attr_name()))
 
         return self.calc_byte_size(ctx)

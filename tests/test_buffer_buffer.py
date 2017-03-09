@@ -4,7 +4,7 @@ from infi.unittest import TestCase
 from infi.instruct.buffer.buffer import Buffer, InstructBufferError
 from infi.instruct.buffer.macros import (int_field, float_field, str_field, buffer_field, list_field,
                                          bytes_ref, total_size, n_uint32, be_int_field, len_ref, self_ref, num_ref,
-                                         json_field, le_int_field)
+                                         json_field, le_int_field, uint_field)
 from infi.instruct._compat import range, PY2
 
 
@@ -36,7 +36,7 @@ class BufferTestCase(TestCase):
 
     def test_buffer_pack_unpack__int_5_bytes(self):
         class Foo(Buffer):
-            f_int = int_field(where=bytes_ref[0:5])
+            f_int = uint_field(where=bytes_ref[0:5])
         foo = Foo()
         foo.f_int = 0x4241403938
         self.assertEqual(b"\x38\x39\x40\x41\x42", foo.pack())
@@ -45,7 +45,7 @@ class BufferTestCase(TestCase):
 
     def test_buffer_pack_unpack__int_7_bytes(self):
         class Foo(Buffer):
-            f_int = int_field(where=bytes_ref[0:7])
+            f_int = uint_field(where=bytes_ref[0:7])
         foo = Foo()
         foo.f_int = 0x4241403f3e3d3c
         self.assertEqual(b"\x3c\x3d\x3e\x3f\x40\x41\x42", foo.pack())

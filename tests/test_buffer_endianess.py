@@ -11,12 +11,20 @@ class TestBufferBE(Buffer):
 
 class NibbleTestBufferLE(Buffer):
     padding1 = le_uint_field(where=bytes_ref[0].bits[4:8], default=0xf)
-    three_byte_int = le_uint_field(where=bytes_ref[0].bits[0:4] + bytes_ref[1:3] + bytes_ref[3].bits[4:8])
+    three_byte_int = le_uint_field(where=
+        (bytes_ref[1].bits[4:8] + bytes_ref[0].bits[0:4]) +
+        (bytes_ref[2].bits[4:8] + bytes_ref[1].bits[0:4]) +
+        (bytes_ref[3].bits[4:8] + bytes_ref[2].bits[0:4])
+        )
     padding2 = le_uint_field(where=bytes_ref[3].bits[0:4], default=0xf)
 
 class NibbleTestBufferBE(Buffer):
     padding1 = be_uint_field(where=bytes_ref[0].bits[4:8], default=0xf)
-    three_byte_int = be_uint_field(where=bytes_ref[0].bits[0:4] + bytes_ref[1:3] + bytes_ref[3].bits[4:8])
+    three_byte_int = be_uint_field(where=
+        (bytes_ref[1].bits[4:8] + bytes_ref[0].bits[0:4]) +
+        (bytes_ref[2].bits[4:8] + bytes_ref[1].bits[0:4]) +
+        (bytes_ref[3].bits[4:8] + bytes_ref[2].bits[0:4])
+        )
     padding2 = be_uint_field(where=bytes_ref[3].bits[0:4], default=0xf)
 
 class TestCase(unittest.TestCase):

@@ -9,26 +9,25 @@ random.seed(0)
 
 class IOBufferTestCase(TestCase):
     def test_getitem__byte(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         self.assertEqual(1, buf[0])
         self.assertEqual(2, buf[1])
-        self.assertEqual(4, buf[1.125])
+        self.assertEqual(1, buf[1.125])
         self.assertEqual(4, buf[2])
-        self.assertEqual(8, buf[2.125])
-        self.assertEqual(16, buf[2.25])
-        self.assertEqual(32, buf[2.375])
+        self.assertEqual(2, buf[2.125])
+        self.assertEqual(1, buf[2.25])
+        self.assertEqual(0, buf[2.375])
 
-        buf = BitAwareByteArray(bytearray((128, 1)), 0, 2)
-        self.assertEqual(0, buf[0.125])
-        self.assertEqual(128, buf[1 + 0.125 * 7])
+        buf = BitAwareByteArray(b"\x80\x01")
+        self.assertEqual(3, buf[1 - 0.125])
 
-        buf = BitAwareByteArray(bytearray((2, 4)), 0.125, 2)
-        self.assertEqual(4, buf[0])
-        self.assertEqual(8, buf[1])
-        self.assertEqual(16, buf[1.125])
+        buf = BitAwareByteArray(b"\x02\x04", 0.125, 2)
+        self.assertEqual(1, buf[0])
+        self.assertEqual(2, buf[1])
+        self.assertEqual(1, buf[1.125])
 
     def test_getitem__range(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4, 128, 1)), 0, 5)
+        buf = BitAwareByteArray(b"\x01\x02\x04\x80\x01")
         self.assertEqual([1], list(buf[0:1]))
         self.assertEqual([1, 2], list(buf[0:2]))
         self.assertEqual([2, 4], list(buf[1:3]))
@@ -41,46 +40,29 @@ class IOBufferTestCase(TestCase):
         self.assertEqual([], list(buf[-10:-5]))
 
     def test_setitem__byte(self):
-        buf = BitAwareByteArray((1, 2, 4))
-        buf[0:1] = 3
+        buf = BitAwareByteArray(b"\x01\x02\x04", 0, 3)
+        buf[0:1] = b"\x03"
         self.assertEqual([3, 2, 4], list(buf))
 
-        buf = BitAwareByteArray((1, 2, 4))
-        buf[0.125:1.125] = 3
+        buf = BitAwareByteArray(b"\x01\x02\x04", 0, 3)
+        buf[0.125:1.125] = b"\x03"
         self.assertEqual([7, 2, 4], list(buf))
 
-        buf = BitAwareByteArray((1, 2, 4))
-        buf[0.125:1.125] = 0x83
+        buf = BitAwareByteArray(b"\x01\x02\x04", 0, 3)
+        buf[0.125:1.125] = b"\x83"
         self.assertEqual([7, 3, 4], list(buf))
 
-    def test_setitem__bits(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[0:0.125] = 0
-        self.assertEqual([0, 2, 4], list(buf))
-
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[0.125:0.25] = 1
-        self.assertEqual([3, 2, 4], list(buf))
-
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[1.125:1.375] = 3
-        self.assertEqual([1, 6, 4], list(buf))
-
     def test_setitem__insert_into_empty_range(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
-        buf[0.125:0.125] = BitView((1,), 0, 0.125)
+        buf = BitAwareByteArray(b"\x01\x02\x04")
+        buf[0.125:0.125] = BitView(b"\x01", 0, 0.125)
         self.assertEqual([3, 4, 8, 0], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[0:0] = BitView(bytearray((1,)), 0, 0.125)
+        buf = BitAwareByteArray(b"\x01\x02\x04")
+        buf[0:0] = BitView(b"\x01", 0, 0.125)
         self.assertEqual([3, 4, 8, 0], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[0.25:0.25] = BitView(bytearray(1), 0, 0.125)
-        self.assertEqual([1, 4, 8, 0], list(buf))
-
-        buf = BitAwareByteArray(bytearray((1, 2, 4)), 0, 3)
-        buf[0.25:0.25] = BitView(bytearray((1,)), 0, 0.125)
+        buf = BitAwareByteArray(b"\x01\x02\x04")
+        buf[0.25:0.25] = BitView(b"\x01", 0, 0.125)
         self.assertEqual([5, 4, 8, 0], list(buf))
 
     def test_setitem__smaller_val(self):
@@ -92,34 +74,34 @@ class IOBufferTestCase(TestCase):
         self.assertEqualBitArrayBitView(ba, bv)
 
     def test_delitem__bits(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         del buf[0:1]
         self.assertEqual([2, 4], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         del buf[1:]
         self.assertEqual([1], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         del buf[0:0.125]
         self.assertEqual([0, 1, 2], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         del buf[0:1.125]
         self.assertEqual([1, 2], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         del buf[0:2.25]
         self.assertEqual([1], list(buf))
 
     def test_insert__bytes(self):
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
-        buf.insert(3, bytearray((8, 16)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
+        buf.insert(3, "\x08\x10")
         self.assertEqual([1, 2, 4, 8, 16], list(buf))
 
-        buf = BitAwareByteArray(bytearray((1, 2, 4)))
+        buf = BitAwareByteArray(b"\x01\x02\x04")
         # 100000000 01000000 00100000
-        buf.insert(1.25, bytearray((8, 16)))
+        buf.insert(1.25, b"\x08\x10")
         #   100000000 01 00010000 00001000 000000 00100000
         # = 100000000 01000100 00000010 00000000 00100000
         # = 1         34       64       0        4
@@ -163,8 +145,8 @@ class IOBufferTestCase(TestCase):
             ba1 = self._create_random_bit_array()
             ba2 = self._create_random_bit_array()
             ba = ba1 + ba2
-            bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=ba1.length() / 8.0)
-            bv2 = BitAwareByteArray(self._bitarray_to_bytes(ba2), stop=ba2.length() / 8.0)
+            bv1 = BitAwareByteArray(self._bitarray_to_bytes(ba1), stop=float(ba1.length()) / 8)
+            bv2 = BitAwareByteArray(self._bitarray_to_bytes(ba2), stop=float(ba2.length()) / 8)
             bv = bv1 + bv2
             self.assertEqualBitArrayBitView(ba, bv)
 
@@ -202,9 +184,9 @@ class IOBufferTestCase(TestCase):
         self.assertEquals(list(bv1), list(a))
 
     def test_insert_zeros(self):
-        bv = BitAwareByteArray((0x80,), 0, 0.5)
-        bv[0.5:1.5] = BitView((0x80,))
-        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('100010000000'), bv)
+        bv = BitAwareByteArray(b"\x01", 0, 0.5)
+        bv[0.5:1.5] = BitView(b"\x01")
+        self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('000000010001'), bv)
 
     def test_insert_zeros_1(self):
         bv = BitAwareByteArray(bytearray((0xFF, 0, 0, 0)))
@@ -214,9 +196,9 @@ class IOBufferTestCase(TestCase):
     def test_insert_zeros_2(self):
         bv = BitAwareByteArray(bytearray())
         bv.zfill(0.5)
-        bv[0.5:1.5] = BitView([0xFF])
+        bv[0.5:1.5] = BitView(b"\xff")
         bv.zfill(2.5)
-        bv[2.5:3.5] = BitView([0])
+        bv[2.5:3.5] = BitView(b"\x00")
         self.assertEqualBitArrayBitView(self._bitarray_from_bitstring('0000000000000000111111110000'), bv)
 
     def test_bitview_fetch_small(self):
@@ -229,16 +211,22 @@ class IOBufferTestCase(TestCase):
         self.assertEquals(list(a), [2])
 
     def assertEqualBitArrayBitView(self, ba, bv):
-        self.assertEqual(ba.to01(), bv.buffer.bin)
+        self.assertEqual(ba.length(), 8 * bv.length())
+        ba_bytes = self._bitarray_to_bytes(ba)
+        if PY2:
+            bv_bytes = str(bv)
+        else:
+            bv_bytes = bv.to_bytes()
+        self.assertEqual(ba_bytes, bv_bytes)
 
     def _bitarray_from_bitstring(self, str):
-        return bitarray("".join(str), endian='big')
+        return bitarray("".join(reversed(str)), endian='little')
 
     def _create_random_bit_array(self):
         length_in_bits = random.randint(0, 8 * 16)
-        return bitarray("".join(random.choice(('0', '1')) for i in range(length_in_bits)), endian='big')
+        return bitarray("".join(random.choice(('0', '1')) for i in range(length_in_bits)), endian='little')
 
     def _bitarray_to_bytes(self, b):
-        copy = bitarray(b, endian='big')
+        copy = bitarray(b, endian='little')
         copy.fill()
         return bytearray(copy.tobytes())

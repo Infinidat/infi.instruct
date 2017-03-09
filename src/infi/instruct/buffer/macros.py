@@ -127,7 +127,7 @@ def le_uint_field(*args, **kwargs):
 
 
 def le_int_field(*args, **kwargs):
-    kwargs.update(dict(endian='little'))
+    kwargs.update(endian='little')
     return int_field(*args, **kwargs)
 
 

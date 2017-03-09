@@ -1,14 +1,14 @@
 import math
 import struct
 import json
-from bitstring import Bits
+from bitarray import bitarray
 from sys import byteorder
 
 from .io_buffer import BitAwareByteArray, BitView
 from .buffer import BufferType
 
 from ..errors import InstructError
-from .._compat import long
+from .._compat import long, PY2
 from ..utils.kwargs import (copy_defaults_and_override_with_kwargs, assert_kwarg_enum, copy_and_remove_kwargs,
                             keep_kwargs_partial)
 
@@ -52,21 +52,25 @@ ENDIAN_NAME_TO_FORMAT = {'unspecified': '@', 'native': '=', 'big': '>', 'little'
 # integer support
 #
 
-ENDIAN_NAME_TO_BITSTRING_ARG = {'unspecified': 'int', 'native': 'intne', 'big': 'intbe', 'little': 'intle'}
-
-def _endian_and_sign_to_bitstring_name(endian, sign):
-    t = ENDIAN_NAME_TO_BITSTRING_ARG[endian]
-    if sign == 'unsigned':
-        t = 'u' + t
-    return t
-
 def pack_bit_int(value, byte_size, **kwargs):
     assert byte_size is not None
-    if byte_size % 1 != 0:  # no big/little endian if the size is not byte aligned
-        typ = _endian_and_sign_to_bitstring_name('unspecified', kwargs.get('sign', 'signed'))
-    else:
-        typ = _endian_and_sign_to_bitstring_name(kwargs.get('endian', 'unspecified'), kwargs.get('sign', 'signed'))
-    return Bits(**{typ: value, 'length': int(byte_size * 8)}).tobytes()
+    endian = kwargs.get('endian', 'native')
+    if endian in ('native', 'unspecified'):
+        endian = byteorder
+    bit_size = int(byte_size * 8)
+    result = bitarray(bit_size, endian='little')
+    value_bit_length = value.bit_length()
+    if bit_size > value_bit_length:
+        filler = 0
+        if kwargs.get('sign', 'signed') == 'signed' and value < 0:
+            filler = 1
+        result.setall(filler)
+    for i in range(value_bit_length):
+        result[i] = (value >> i) & 1
+    packed_result = bytearray(result.tobytes())
+    if endian == 'big':
+        packed_result.reverse()
+    return packed_result
 
 
 def format_from_struct_int_arguments(format_char, kwargs):
@@ -100,11 +104,29 @@ def pack_int(value, **kwargs):
 
 def unpack_bit_int(buffer, byte_size, **kwargs):
     assert byte_size is not None
-    if byte_size % 1 != 0:  # no big/little endian if not byte aligned
-        typ = _endian_and_sign_to_bitstring_name('unspecified', kwargs.get('sign', 'signed'))
-    else:
-        typ = _endian_and_sign_to_bitstring_name(kwargs.get('endian', 'unspecified'), kwargs.get('sign', 'signed'))
-    return getattr(Bits(bytes=buffer.to_bytearray(), length=int(byte_size * 8)), typ), byte_size
+    endian = kwargs.get('endian', 'native')
+    if endian in ('native', 'unspecified'):
+        endian = byteorder
+    bit_size = int(byte_size * 8)
+
+    if isinstance(buffer, BitView):
+        tmp = buffer.to_bytearray()
+    elif not isinstance(buffer, bytearray):
+        tmp = bytearray(buffer)
+
+    if endian == 'big':
+        tmp.reverse()
+
+    b = bitarray(endian='little')
+    b.frombytes(bytes(tmp) if PY2 else tmp)
+    del b[bit_size:]
+    value = 0
+    for i in range(bit_size):
+        value |= b[i] << i
+    if kwargs.get('sign', 'signed') == 'signed':
+        if b[bit_size - 1]:
+            value = -((1 << bit_size) - value)
+    return value, byte_size
 
 
 def unpack_struct_int(buffer, format_char, **kwargs):

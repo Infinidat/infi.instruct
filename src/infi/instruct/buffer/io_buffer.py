@@ -1,6 +1,6 @@
 import math
 import collections
-from bitstring import Bits, BitArray
+from bitarray import bitarray
 from .._compat import is_string_or_bytes, range, PY2
 from six import integer_types
 
@@ -23,36 +23,41 @@ class BitView(collections.Sequence):
         super(BitView, self).__init__()
         start = int(start * 8) if start is not None else 0
         if stop is None:
-            stop = buffer.length if isinstance(buffer, Bits) else len(buffer) * 8
+            stop = buffer.length() if isinstance(buffer, bitarray) else len(buffer) * 8
         else:
             stop = int(stop * 8)
-
         assert start >= 0 and stop >= 0
         assert start <= stop
         # FIXME: On Python 2.7 there's no bytes() type (immutable byte sequence).
         if is_string_or_bytes(buffer) or isinstance(buffer, bytearray):
             assert stop <= len(buffer) * 8
-            self.buffer = BitArray(bytes=buffer, offset=start, length=stop - start)
+            self.buffer = bitarray(endian='little')
+            self.buffer.frombytes(bytes(buffer) if PY2 and isinstance(buffer, bytearray) else buffer)
+            if stop < self.buffer.length():
+                del self.buffer[stop:]
+            if start < self.buffer.length():
+                del self.buffer[0:start]
         elif isinstance(buffer, BitView):
             self.buffer = buffer.buffer[start:stop]
-        elif isinstance(buffer, Bits):
-            self.buffer = BitArray(buffer[start:stop])
-        elif isinstance(buffer, BitArray):
+        elif isinstance(buffer, bitarray):
             self.buffer = buffer[start:stop]
         elif isinstance(buffer, (collections.Sized, collections.Iterable)):
-            self.buffer = BitArray(bytearray(buffer))
+            self.buffer = bitarray(stop - start, endian='little')
+            tmp = bitarray(endian="little")
+            tmp.frombytes(buffer)
+            self.buffer = tmp[start:stop]
         else:
             raise TypeError("buffer is not Bits/BitArray - instead it's {}".format(type(buffer)))
 
     def __getitem__(self, key):
         start, stop = self._key_to_range(key)
         if isinstance(key, slice):
-            return type(self)(self.buffer[start:stop])
+            return type(self)(self.buffer, start / 8.0, stop / 8.0)
         else:  # must be int/float otherwise _key_to_range would raise an error
             return self._get_byte_bits(start, 8)
 
     def __len__(self):
-        return (self.buffer.length + 7) / 8
+        return (self.buffer.length() + 7) / 8
 
     def __iter__(self):
         for i in range(len(self)):
@@ -68,7 +73,7 @@ class BitView(collections.Sequence):
         return "{0}(buffer={1!r})".format(type(self), self.buffer)
 
     def to_bitstr(self):
-        return self.buffer.bin
+        return self.buffer.to01()
 
     def to_bytearray(self):
         return bytearray(self.buffer.tobytes())
@@ -77,7 +82,7 @@ class BitView(collections.Sequence):
         return self.buffer.tobytes()
 
     def length(self):
-        return self.buffer.length / 8.0
+        return self.buffer.length() / 8.0
 
     def _get_byte_bits(self, bit_ofs, bit_len):
         return ord(self.buffer[bit_ofs:bit_ofs + bit_len].tobytes()[0])
@@ -86,13 +91,19 @@ class BitView(collections.Sequence):
         if isinstance(key, slice):
             if key.step not in (None, 1):
                 raise NotImplementedError("step must be 1 or None")
-            start = int(key.start * 8) if key.start is not None else None
-            stop = int(key.stop * 8) if key.stop is not None else None
+            start = int(key.start * 8) if key.start is not None else 0
+            stop = int(key.stop * 8) if key.stop is not None else self.buffer.length()
         elif isinstance(key, integer_types + (float,)):
             start = int(key * 8)
             stop = start + 8
         else:
             raise TypeError("index must be int, float or a slice")
+        start = min(self.buffer.length(), start)
+        stop = min(self.buffer.length(), stop)
+        if start < 0:
+            start = max(0, self.buffer.length() + start)
+        if stop < 0:
+            stop = max(0, self.buffer.length() + stop)
         return start, stop
 
 
@@ -105,28 +116,31 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
 
     def __setitem__(self, key, value):
         start, stop = self._key_to_range(key)
-        value = self._value_to_bitview(value)
-        self.buffer[start:stop] = value[0:(stop - start) / 8.0].buffer
+        value = self._value_to_bitarray(value)
+        self.buffer[start:stop] = value
 
     def __delitem__(self, key):
         start, stop = self._key_to_range(key)
-        self.buffer[start:stop] = None
+        del self.buffer[start:stop]
 
     def insert(self, i, value):
-        value = self._value_to_bitview(value)
+        value = self._value_to_bitarray(value)
         ofs = int(i * 8)
-        if ofs > self.buffer.length:
-            self.buffer[self.buffer.length:ofs + value.length] = 0
-        self.buffer[ofs:ofs + value.length] = value
+        if ofs > self.buffer.length():
+            self.buffer.zfill(ofs)
+        self.buffer[ofs:ofs] = value
 
     def extend(self, other):
-        other = self._value_to_bitview(other)
-        self.buffer.append(other.buffer)
+        other = self._value_to_bitarray(other)
+        self.buffer[self.buffer.length():] = other
 
     def zfill(self, length):
-        n = int(length * 8) - self.buffer.length
+        l = self.buffer.length()
+        n = int(length * 8) - l
         if n > 0:
-            self.buffer[self.buffer.length:self.buffer.length + n] = 0
+            tmp = bitarray(n, endian='little')  # no other way to extend the buffer with 0s...
+            tmp.setall(0)
+            self.buffer[l:l + n] = tmp
 
     def __add__(self, other):
         if not isinstance(other, BitView):
@@ -138,27 +152,15 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
             return NotImplemented
         return BitAwareByteArray(other.buffer + self.buffer)
 
-    def _value_to_bitview(self, value):
+    def _value_to_bitarray(self, value):
         if isinstance(value, BitView):
+            return value.buffer
+        elif isinstance(value, bitarray):
             return value
-        elif isinstance(value, Bits):
-            return BitView(value)
         elif isinstance(value, (collections.Sized, collections.Iterable)):
-            return BitView(bytearray(value))
-        # elif isinstance(value, integer_types):
-        #     # Short circuit: make bit ranges accept int values by their bit length.
-        #     bit_length = max(1, value.bit_length())
-        #     if bit_length > int_value_len * 8:
-        #         # Safety measure for short circuit: if user is assigning an int with more bits than the range of
-        #         # bits that he specified we shout.
-        #         raise ValueError("trying to assign int {0} with bit length {1} to bit length {2}".format(value,
-        #                          bit_length, int(int_value_len * 8)))
-        #     l = []
-        #     for n in range(0, bit_length, 8):
-        #         l.append(value % 256)
-        #         value //= 256
-        #     value = l
-        #     value_len = max(float(bit_length) / 8, int_value_len)
+            tmp = bitarray(endian='little')
+            tmp.frombytes(bytes(value) if PY2 else value)
+            return tmp
         raise TypeError("value must be iterable or int and not {}".format(type(value)))
 
 
@@ -176,14 +178,14 @@ class InputBuffer(object):
             assert not range.is_open()
             return self.buffer[range.start:range.stop]
         else:
-            result = BitArray()
+            result = BitAwareByteArray(bytearray())
             for range in range_list:
                 assert not range.is_open()
-                result.append(self.buffer.buffer[int(range.start * 8):int(range.stop * 8)])
-            return BitAwareByteArray(result)
+                result.extend(self.buffer[range.start:range.stop])
+            return result
 
     def length(self):
-        return len(self.buffer)
+        return self.buffer.length()
 
     def __repr__(self):
         return "InputBuffer({0!r})".format(self.buffer)

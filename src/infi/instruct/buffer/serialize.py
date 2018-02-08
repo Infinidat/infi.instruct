@@ -126,7 +126,7 @@ def unpack_int(buffer, **kwargs):
 
 def format_from_struct_float_arguments(format_char, kwargs):
     args = copy_defaults_and_override_with_kwargs(dict(endian='native'), kwargs)
-    assert_enum_argument('format_char', format_char, ('f', 'd'))
+    assert_enum_argument('format_char', format_char, ('f', 'q'))
     assert_kwarg_enum(args, 'endian', ENDIAN_NAME_TO_FORMAT.keys())
     return "{0}{1}".format(ENDIAN_NAME_TO_FORMAT[args["endian"]], format_char)
 

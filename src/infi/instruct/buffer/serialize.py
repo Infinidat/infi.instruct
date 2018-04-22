@@ -145,7 +145,7 @@ def pack_float(value, **kwargs):
 
 STRUCT_FLOAT_PACKERS = {
     4: keep_kwargs_partial(pack_struct_float, format_char='f'),
-    8: keep_kwargs_partial(pack_struct_float, format_char='q')
+    8: keep_kwargs_partial(pack_struct_float, format_char='d')
 }
 
 

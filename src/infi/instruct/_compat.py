@@ -23,6 +23,8 @@ if PY2:
     def values_list(d):
         return d.values()
 
+    import collections as abc
+
 else:
     from itertools import repeat
     from io import BytesIO as StringIO
@@ -41,3 +43,5 @@ else:
 
     def values_list(d):
         return list(d.values())
+
+    import collections.abc as abc

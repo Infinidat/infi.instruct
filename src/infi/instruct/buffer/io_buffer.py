@@ -1,6 +1,5 @@
 import math
-import collections
-from .._compat import is_string_or_bytes, range, PY2
+from .._compat import is_string_or_bytes, range, PY2, abc
 from six import integer_types
 
 
@@ -8,7 +7,7 @@ def float_to_byte_bit_pair(n):
     return (int(n), int((n - int(n)) * 8))
 
 
-class BitView(collections.Sequence):
+class BitView(abc.Sequence):
     """
     Provides bit indexing over an existing buffer.
 
@@ -115,7 +114,7 @@ class BitView(collections.Sequence):
         return str(ba) if PY2 else bytes(ba)
 
 
-class BitAwareByteArray(BitView, collections.MutableSequence):
+class BitAwareByteArray(BitView, abc.MutableSequence):
     """
     Similar to BitView, but this class is mutable.
     """
@@ -252,9 +251,9 @@ class BitAwareByteArray(BitView, collections.MutableSequence):
         value_len = 0
         if isinstance(value, BitView):
             value_len = value.length()
-        elif isinstance(value, collections.Sized):
+        elif isinstance(value, abc.Sized):
             value_len = len(value)
-        elif isinstance(value, collections.Iterable):
+        elif isinstance(value, abc.Iterable):
             value = bytearray(value)
             value_len = len(value)
         elif isinstance(value, integer_types):
